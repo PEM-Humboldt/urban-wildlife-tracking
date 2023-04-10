@@ -39,6 +39,14 @@ set.seed(9835)
 
 # Descargar los datos desde movebank
 
+****************
+
+Note: here we use a password file that we can't share for obvious security reason... please use such a file named "password.csv" with your password or modify the credential used at your convenience
+
+
+
+***************
+
 ```{r}
 require(move2)&require(move)
 passWord <- read.csv("password.csv",h=F)[1,1]
@@ -146,16 +154,8 @@ geo_log<-cbind(geo_log,coordinates(mvData))
 ```{r}
 require(ROracle)
 drv<-dbDriver("Oracle")
-connect.string<-
-  "
-  (DESCRIPTION =
-    (ADDRESS = (PROTOCOL = TCP)(HOST = scanamva.areametro.com)(PORT = 1521))
-    (CONNECT_DATA =
-      (SERVER = DEDICATED)
-      (SERVICE_NAME = pruebas.areametro.com)
-    )
-  )"
-amva<- dbConnect(drv,username="humboldt",password="Colombia2022",dbname=connect.string)
+connect.string<-paste(readLines("./connection_string"), collapse="\n")
+amva<- dbConnect(drv,username="humboldt",password=readLines("./password_oracle"),dbname=connect.string)
 dbListTables(amva)
 dbGetQuery(amva,"SELECT * FROM user_sequences")
 
