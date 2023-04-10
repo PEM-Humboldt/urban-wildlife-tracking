@@ -1,19 +1,28 @@
-# telemetria-urbana
+# urban-wildlife-tracking
 
-## Objeto y objetivo
+## Object and objectives
 
-Se trata de describir las operaciones de manejo y análisis de datos que se utilizarón para el proyecto de rastreo de la fauna urbana en la Área Metropolitana del Valle de Aburrá, Antioquia, Colombia.
-Este trabajo se realizó por el instituto Humboldt, en un convenio con la Área Metropolitana del Valle de Aburrá (AMVA).
+With this repository, we aim to describe the processes of data management and analysis from the project "Rastreo de la fauna urbana en la Área Metropolitana del Valle de Aburrá, Antioquia, Colombia" (Urban fauna tracking in the Metropolitan Area of Valle de Aburrá, Antioquia, Colombia).
+This work was conducted by the Instituto Alexander von Humboldt (public Colombian research institute) in an agreement with "Área Metropolitana del Valle de Aburrá" (AMVA).
 
-## Contenido
+## Contents
 
-El repositorio incluye:
+The repository includes :
 
-1. carpeta "data_management": contiene los documentos y codigos que describen las varias etapas de manejo de datos del proyecto:
-    + subcarpeta "general": descripción de los flujos de datos del proyecto
-    + subcarpeta "movebank": describe el manejo de los datos en la plataforma movebank.org
-    + subcarpeta "oracle_amva": almanecamiento de los datos en la base de datos Oracle de Amva
-    + subcarpeta "local": filtros y tratamientos locales de los datos de movebank
-2. carpeta "data_analysis": contiene los documentos y codigos que describen los análisis de datos de movimiento de los animales
-    + subcarpeta "documentation": descripción de los flujos de análisis y del trabajo bibliográfico que se realizó para repertoriar las posibilidades de análisis de ecología del movimiento potencialmenta aplicables en el marco de este proyecto
-    + subcarpeta "analysis": documentos rmarkdown de análisis de los datos en R
+1. folder "data_management": documents y codes for the data management steps of the project:
+    + subfolder "general": data stream description
+    + subfolder "movebank": setup and use of the movebank platform
+    + subfolder "oracle_amva": storing the data in the AMVA Oracle database
+    + subfolder "local": local filters and data treatment of the data from movebank
+2. folder "data_analysis": documents and codes for data analysis
+    + subfolder "documentation": analysis flow and bibliography description. An analysis of the literature was conducted in order to assess the potential movement ecology methodology that may be useful in our project
+    + subfolder "analysis": codes and description of the analysis in R
+
+## Rmarkdown
+Most of the codes shown are in rmarkdown document which may be applied and rendered locally in R using:
+
+```
+rmarkdown::render("filename.Rmd")
+```
+
+
