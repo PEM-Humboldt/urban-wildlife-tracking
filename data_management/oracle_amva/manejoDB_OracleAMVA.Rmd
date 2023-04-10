@@ -1,0 +1,190 @@
+---
+title: "Manejo de los datos en la base de datos [Amva]{.smallcaps}"
+author: "Marius Bottin"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output: 
+   pdf_document:
+      toc: TRUE
+      toc_depth: 3
+---
+
+
+\textsc{Amva} cuenta con una infraestructura informática que contiene un servidor de base de datos Oracle.
+El objetivo de este documento es mostrar como podemos manejar el flujo de datos entre movebank y la base de datos.
+
+# Manejo de la base de datos y modelo de datos
+
+La ultima version del script de creación de las tablas 
+
+(*"AMVA_SCRIPTS_TABLES_V7_GEO_NEW_FIELDS_NEW_NAMES.sql"*, 23 de enero del 2023) contiene el codigo siguiente:
+
+## Primero modelo de datos
+
+
+```sql
+CREATE TABLE tracker
+(
+  tracker_id    NUMBER NOT NULL,
+  serial        VARCHAR2(500),
+  make          VARCHAR2(500),
+  model         VARCHAR2(500),
+  CONSTRAINT tracker_pk PRIMARY KEY (tracker_id)
+);
+COMMENT ON COLUMN tracker.tracker_id IS 'Identificador único del rastreador';
+COMMENT ON COLUMN tracker.serial IS 'Serial del rastreador';
+COMMENT ON COLUMN tracker.make IS 'Marca del rastreador';
+COMMENT ON COLUMN tracker.model IS 'Modelo del rastreador';
+COMMENT ON TABLE tracker  IS 'Datos de los rastreadores';
+CREATE TABLE specimen
+(
+  specimen_id       NUMBER NOT NULL,
+  tracker_id        NUMBER NOT NULL,
+  nick_name			VARCHAR2(500),
+  scientific_name   VARCHAR2(500),
+  kingdom_tax       VARCHAR2(500),
+  phylum_tax        VARCHAR2(500),
+  class_tax         VARCHAR2(500),
+  order_tax         VARCHAR2(500),
+  family_tax        VARCHAR2(500),
+  genus_tax         VARCHAR2(500),
+  specific_epithet  VARCHAR2(500),
+  sex               VARCHAR2(500),
+  life_stage        VARCHAR2(500),
+  CONSTRAINT specimen_pk PRIMARY KEY (specimen_id),
+  CONSTRAINT specimen_fk_tracker FOREIGN KEY (tracker_id) REFERENCES tracker(tracker_id)
+);
+COMMENT ON COLUMN specimen.specimen_id IS 'Identificador único de la especie';
+COMMENT ON COLUMN specimen.tracker_id IS 'Identificador del rastreador';
+COMMENT ON COLUMN specimen.nick_name IS 'Apodo';
+COMMENT ON COLUMN specimen.scientific_name IS 'Scientific name';
+COMMENT ON COLUMN specimen.kingdom_tax IS 'Reino taxonómico al que pertenece la especie rastreada (Animalia)';
+COMMENT ON COLUMN specimen.phylum_tax IS 'Filo taxonómico al que pertenece la especie rastreada (Chordata)';
+COMMENT ON COLUMN specimen.class_tax IS 'Clase taxonómica al que pertenece la especie rastreada (Aves, Mammalia)';
+COMMENT ON COLUMN specimen.order_tax IS 'Orden taxonómico al que pertenece la especie rastreada (Strigiformes, Pelecaniformes, Falconiformes, Galliformes, Accipitriformes, Primates, Rodentia, Carnivora, Didelphimorphia)';
+COMMENT ON COLUMN specimen.family_tax IS 'Familia taxonómica al que pertenece la especie rastreada (Strigidae, Ardeidae, Threskiornithidae, Falconidae, Cracidae, Accipitridae, Callitrichidae, Sciuridae, Canidae, Didelphidae, Mustelidae, Dasyproctidae, Felidae)';
+COMMENT ON COLUMN specimen.genus_tax IS 'Género taxonómico al que pertenece la especie rastreada (Asio, Bubulcus, Phimosus, Milvago, Ortalis, Rupornis, Saguinus, Notosciurus, Cerdocyon, Didelphis, Mustela, Dasyprocta, Puma, Leopardus)';
+COMMENT ON COLUMN specimen.specific_epithet IS 'Epíteto específico de la especie rastreada (clamator, ibis, infuscatus, chimachima, columbiana, magnirostris, leucopus, granatensis, thous, marsupialis, frenata, punctata, concolor, tigrinus)';
+COMMENT ON COLUMN specimen.sex IS 'Sexo del individuo rastreado (Male, Female)';
+COMMENT ON COLUMN specimen.life_stage IS '(Juvenile, Adult)';
+COMMENT ON TABLE specimen IS 'Datos de las especies';
+--GEO_LOG
+-- 1. Create the table
+CREATE TABLE geo_log
+(
+  log_id            NUMBER(38) NOT NULL,
+  specimen_id       NUMBER NOT NULL,
+  event_date        DATE,
+  elevation         NUMBER,
+  purgued           NUMBER(1),
+  temperature       NUMBER,
+  inactivity        NUMBER,
+  activity          NUMBER,
+  h_dop             FLOAT,
+  v_dop             FLOAT,
+  h_error           FLOAT,
+  spatial_location  sdo_geometry,
+  CONSTRAINT geo_log_pk PRIMARY KEY (log_id),
+  CONSTRAINT geo_log_fk_specimen FOREIGN KEY (specimen_id) REFERENCES specimen(specimen_id)
+);
+COMMENT ON COLUMN geo_log.log_id IS 'Identificador único del registro en el log';
+COMMENT ON COLUMN geo_log.specimen_id IS 'Identificador de la especie';
+COMMENT ON COLUMN geo_log.event_date IS 'Fecha y hora del registro';
+COMMENT ON COLUMN geo_log.elevation IS 'Altura con respecto al geoide';
+COMMENT ON COLUMN geo_log.purgued IS 'Indica si el registro está depurado o no';
+COMMENT ON COLUMN geo_log.temperature IS 'Temperatura del receptor (°C)';
+COMMENT ON COLUMN geo_log.inactivity IS 'Contador de inactividad';
+COMMENT ON COLUMN geo_log.activity IS 'Contador de actividad';
+COMMENT ON COLUMN geo_log.h_dop IS 'Incertidumbre en la posición horizontal del individuo (Solo para CTT)';
+COMMENT ON COLUMN geo_log.v_dop IS 'Incertidumbre en la posición vertical del individuo (Solo para CTT)';
+COMMENT ON COLUMN geo_log.h_error IS 'Error horizontal (m)';
+COMMENT ON COLUMN geo_log.spatial_location IS 'Posición (latitud y longitud) del registro';
+COMMENT ON TABLE geo_log IS 'Datos de los registros generados por los rastreadores en cada uno de los individuos';
+
+
+-- LOS SIGUIENTES PASOS SE REALIZARON PARA HABILITAR CAPACIDADES ESPACIALES EN LA TABLA GEO_LOG, PARA EL CAMPO SPATIAL_LOCATION. SOLO SE REALIZA UNA VEZ DESPUES DE CREAR LA TABLA.
+
+-- 2. Insert a record into the sdo_geom_metadata view
+--SELECT * FROM user_sdo_geom_metadata;
+--delete FROM user_sdo_geom_metadata;
+insert into user_sdo_geom_metadata values ('geo_log', 'spatial_location', SDO_DIM_ARRAY(SDO_DIM_ELEMENT('', -180, 180,0.005), SDO_DIM_ELEMENT('',-90, 90, 0.005)), 4326);
+
+-- 3.Insert a record into the table and create the spatial index (a spatial index is not created on empty table)
+insert into geo_log values (1,1,null,1500,1,null, null, null, null, null, null, sdo_geometry(2001, 4326, sdo_point_type(10,10,null), null, null));
+create index geo_log_esp_indx on geo_log(spatial_location) indextype is mdsys.spatial_index;
+--create index testtab_indx on testtab(geom) indextype is mdsys.spatial_index;
+commit;
+
+--8. Create a sequence and trigger based on the object_id value for the table in all_objects
+CREATE SEQUENCE humboldt.seq_geo_log MINVALUE 1 MAXVALUE 2147483647 INCREMENT BY 1 START WITH 7 NOCACHE  NOORDER  NOCYCLE;
+
+-- No se puede por falta de privilegios
+/*
+CREATE OR REPLACE TRIGGER humboldt.bifer_geo_log 
+ BEFORE INSERT ON humboldt.geo_log
+     FOR EACH ROW
+             DECLARE BEGIN
+             IF :NEW.ID IS NULL THEN
+                     :NEW.ID := seq_geo_log.NEXTVAL;
+                    END IF;
+            EXCEPTION
+           WHEN OTHERS THEN RAISE;
+   END;
+*/
+
+-- OK
+grant select on seq_geo_log to humboldt;
+
+-- OK
+grant select,insert,update,delete on geo_log to humboldt;
+```
+### Comentarios y sugestiones
+
+Yo tengo las sugestiones siguientes:
+
+
+#### General
+
+* usualmente, lo que utilizo para las "PRIMARY KEY" de todas las tablas es una secuencia del mismo tipo de la secuencia creada para seq_geo_log, y un nombre de campo de tipo cd_*nombre_tabla*, tanto para el  PRIMARY KEY como para los FOREIGN KEY que la referencian. De esta manera muchas consultas son más simples escribir (pueden incluso funcionar los JOIN sin referencia los campos, solo las tablas). Los campos de valores unicos diferentes según la PRIMARY KEY se definen al lado como unicos, pero no sirven de PRIMARY KEY. Puede parecer un poco más pesado, pero en mi experiencia, vale el pequeño esfuerzo al principio!
+* pienso que la base de datos debería utilizar la noción de despliegue tal como lo utiliza movebank, porque pensando a un modelo de datos generales a futuro, así podemos manejar aquellos casos en cuales los dispositivos pasan de un animal a otro
+* Sería mejor manejar los GRANT desde el principio, pero arreglar eso se debería hacer en función de la estructura general de la base de datos. Incluso pienso que un SCHEMA para esos datos sería util para separar esos datos de los datos potenciales en la base ORACLE de AMVA
+
+
+#### Tabla "tracker"
+
+* tracker_id debería estar el numero utilizado como "tag" en movebank, pero deberíamos referenciar acá todos los potenciales id de los tracker, en las plataformas de los dispositivos, en movebank, o cualquier otro sistema
+* Los modelos deberían referenciar otra tabla de 3-4 filas que contienen todos los modelos utilizados, para evitar las repeticiones
+
+
+#### Tabla "specimen"
+
+* No pienso que el termino "specimen" sea adaptado acá: tiene una definición muy precisa para la gente que maneja las colecciones biológicas... Comó en el futuro este modelo de datos podría ser adaptado para integrarse en sistemas que se hacen en colaboración con colecciones biológicas, mejor evitar las confusiones de una vez!
+* Tipicamente acá, la repetición de los niveles superiores de los taxones será una fuente de error en el futuro: mejor manejar una tabla que tenga esas informaciones soló una vez por taxón... Si fuéramos incluso más rigoroso, podríamos manejar una tabla auto-referenciada para manejar toda la jerarquía y las definiciones taxonómicas, pero no se justifica totalmente en este proyecto, sabiendo el número limitado de taxones
+* VARCHAR2(500) me parece un poco excesivo...
+* deberíamos aplicar CONSTRAINTS para evitar los errores en sex y lifestage, mi sugestión es incluso referenciar tablas de definiciones de los valores aceptados...
+* Sabiendo que movebank está basado en ITIS para la taxonomía, podría ser util referenciar el ID de los taxones en ITIS acá
+
+#### Tabla geo_log
+
+* event_date debería ser un timestamp
+* no entiendo que es el interes de elevation si es solo la altura del geoide... un DEM tendría todas las informaciones entonces, no?
+* Cual es el interes de tener activity Y inactivity?
+* vdop y h_error parecen no pasar de CTT a movebank...
+* No entiendo la necesidad de las secuencias y triggers para los datos espaciales (anotar, tengo que revisar los formatos espaciales especificos de Oracle, pero lo que conozco de los formatos espaciales de postgis y spatialite me hacen pensar que no es util)
+* Tenemos que ponernos de acuerdo sobre el sistema de proyección que vamos a utilizar para almacenar los datos espaciales
+
+### Propuesta de un nuevo modelo de datos
+
+Considerando los comentarios y sugerencias propuestas en el parafo anterior, propongo los comandos de creación de objetos en la base de datos siguientes (reemplazan el codigo anterior):
+
+```{sql, echo=T, eval=F, file='./oracleDB.sql'}
+
+```
+
+
+ejemplo index que obliga un tipo de datos espaciales
+```
+CREATE INDEX cola_spatial_idx
+ON cola_markets(shape)
+INDEXTYPE IS MDSYS.SPATIAL_INDEX
+PARAMETERS ('layer_gtype=POLYGON');
+```

@@ -1,0 +1,225 @@
+---
+title: "Inserción de los datos en la base de datos oracle en la base de datos de [Amva]{:smallcaps}"
+subtitle: "\\textsc{Amva}: Rastreo fauna área metropolitana del Valle de Aburrá, Colombia"
+author: "Marius Bottin"
+date: "`r Sys.Date()`"
+lang: "es"
+output: 
+    pdf_document:
+       number_sections: true
+       toc: true
+       toc_depth: 4
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{array}
+- \usepackage{multirow}
+- \usepackage{wrapfig}
+- \usepackage{float}
+- \usepackage{colortbl}
+- \usepackage{pdflscape}
+- \usepackage{tabu}
+- \usepackage{threeparttable}
+- \usepackage[normalem]{ulem}
+---
+
+
+```{r setup, echo=F,message=F,warning=FALSE,results='hide'}
+stopifnot(require(kableExtra))
+knitr::opts_chunk$set(cache=T,tidy.opts = list(width.cutoff = 70), tidy = TRUE, fig.path="./Fig/manejoDatos_",echo=T)
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  paste0("\n \\", "footnotesize","\n\n", x, "\n\n \\normalsize\n\n")
+})
+options(knitr.kable.NA = "---")
+set.seed(9835)
+```
+
+
+# Descargar los datos desde movebank
+
+```{r}
+require(move2)&require(move)
+passWord <- read.csv("password.csv",h=F)[1,1]
+#movebank_store_credentials(username="Humboldt_AreaMetropolitana",password=passWord)
+study_id2 <- movebank_get_study_id("Rastreo fauna área metropolitana del Valle de Aburrá, Colombia")
+mv2_deploy<-movebank_download_deployment(study_id2)
+mv2_study<-movebank_download_study(study_id = study_id2)
+tag2<-movebank_retrieve(entity_type = "tag", study_id=study_id2)
+lgin <- movebankLogin(username="Humboldt_AreaMetropolitana",password=passWord)
+study_id<- getMovebankID("Rastreo fauna área metropolitana del Valle de Aburrá, Colombia",login=lgin)
+refData <- getMovebankReferenceTable(study_id,lgin,allAttributes = T)
+#refDataFile<-"./refData_10022023.csv"
+#refData_types<-sapply(read.csv(refDataFile,nrows=100,h=T),typeof)
+#refData_types[1]<-"character"
+#refData<-read.csv(refDataFile,colClasses=refData_types,h=T)
+#colnames(refData)<-gsub("\\.","_",colnames(refData))
+animals<-getMovebankAnimals(study_id,lgin)
+mvData<-getMovebankData(study_id,animalName = animals$animalName ,login=lgin,includeOutliers=T)
+mvData_clean <- getMovebankData(study_id,animalName = animals$animalName ,login=lgin,includeOutliers=F)
+all(mvData_clean$tag_id%in%refData$tag_id)
+```
+
+# Añadir local data
+
+
+**Models y suppliers**
+
+```{r}
+models<-data.frame(supplier_short=c("CTT","Telonics","Telonics"),
+                   model=c("ES-400","TGW-4570-4 GPS/Iridium system","TGW-4170-4 GPS/Iridium system"),
+                   model_short=c("ES-400","TGW-4570-4","TGW-4170-4"))
+suppliers<-data.frame(supplier=c("Cellular Tracking Technologies","Telonics Inc."),
+                      supplier_short=c("CTT","Telonics"))
+```
+
+
+No encontré una solución desde los paquetes R ni los archivos exportados desde el portal de movebank para obtener los vinculos entre local_tag_identifier y tag_id (el problema viene de los local_identifier que se transforman en integer y pierden la precisión en el proceso)
+Sin embargo, se puede obtener desde la API de movebank y httr.
+
+```{r}
+require("httr")
+myauth<-authenticate(user="Humboldt_AreaMetropolitana",password = passWord)
+url<-paste0("https://www.movebank.org/movebank/service/direct-read?entity_type=tag&study_id=",as.character(study_id))
+outFile<-tempfile()
+A<-GET(url,config=myauth)
+B<-content(A,as="text")
+writeLines(B,con=outFile)
+tag_from_api<-read.csv(file=outFile,colClasses="character",h=T,sep=",")
+tracker<-tag_from_api[,c("id","local_identifier","serial_no")]
+colnames(tracker)<-c("movebank_tag","supplier_id","serial")
+tracker$movebank_tag<-as.numeric(tracker$movebank_tag)
+tracker$model<-ifelse((grepl("^89012",tracker$supplier_id)|grepl("^89460",tracker$supplier_id))&nchar(tracker$supplier_id)>18,"ES-400","TGW-4570-4")
+
+```
+
+
+# Datos taxonómicos desde Itis
+
+```{r}
+require(ritis)
+taxa<-unique(animals$taxon_canonical_name)
+taxa<-taxa[taxa!=""]
+tsn<-mapply(function(tab,tax)tab[which(tab$combinedName==tax),"tsn"],lapply(taxa,search_scientific),taxa)
+taxSup<-lapply(tsn,hierarchy_full)
+taxo<-data.frame(scientific_name=taxa,
+           kingdom=unlist(sapply(taxSup,function(x)x[x$rankname=="Kingdom","taxonname"])),
+           phylum=unlist(sapply(taxSup,function(x)x[x$rankname=="Phylum","taxonname"])),
+           class=unlist(sapply(taxSup,function(x)x[x$rankname=="Class","taxonname"])),
+           order=unlist(sapply(taxSup,function(x)x[x$rankname=="Order","taxonname"])),
+           family=unlist(sapply(taxSup,function(x)x[x$rankname=="Family","taxonname"])),
+           genus=unlist(sapply(taxSup,function(x)x[x$rankname=="Genus","taxonname"])),
+           specific_epithet=sapply(strsplit(taxa," "),function(x)x[2]),
+           tsn=unlist(tsn)
+)
+taxo<-rbind(taxo,data.frame(scientific_name="Ortalis columbiana",kingdom="Animalia",phylum="Chordata",class="Aves",order="Galliformes",family="Cracidae",genus="Ortalis",specific_epithet="columbiana",tsn=NA))
+```
+
+
+# Formateo de los datos para que correspondan a las tablas de la base de datos
+
+```{r}
+lifestage<-data.frame(cd_life_stage=c("juv","adu"),life_stage=c("juvenile","adult"))
+
+individual <- refData[!is.na(refData$animal_local_identifier), c("animal_local_identifier","animal_id","animal_taxon_canonical_name","animal_sex","animal_life_stage")]
+colnames(individual) <- c("nick_name", "movebank_animal_id","canonical_name","sex","life_stage")
+individual <- individual[!is.na(individual$nick_name)&individual$nick_name!="",]
+individual$canonical_name[individual$canonical_name==""&grepl("^Guacharaca",individual$nick_name)]<-"Ortalis columbiana"
+individual$life_stage[individual$life_stage=="juvenil"]<-"juvenile"
+individual$life_stage[individual$life_stage==""]<-NA
+
+deployment <- refData[, c("animal_local_identifier", "tag_id", "deploy_on_timestamp", "deploy_off_timestamp","deployment_id")]
+colnames(deployment)<- c("nick_name","movebank_tag_id","date_time_start","date_time_end","movebank_deployment_id")
+deployment <- deployment[!is.na(deployment$movebank_deployment_id),]
+
+geo_log<-mvData@data[c("event_id","tag_id","timestamp","height_above_msl","gps_hdop","ground_speed","heading","tag_voltage")]
+geo_log$purged <- F   
+geo_log$purged[mvData$algorithm_marked_outlier=="true"]<-T
+geo_log$purged[mvData$import_marked_outlier=="true"]<-T
+geo_log$purged[mvData$manually_marked_outlier=="true"]<-T
+geo_log<-cbind(geo_log,coordinates(mvData))
+```
+
+# Connectar a la base de datos
+
+```{r}
+require(ROracle)
+drv<-dbDriver("Oracle")
+connect.string<-
+  "
+  (DESCRIPTION =
+    (ADDRESS = (PROTOCOL = TCP)(HOST = scanamva.areametro.com)(PORT = 1521))
+    (CONNECT_DATA =
+      (SERVER = DEDICATED)
+      (SERVICE_NAME = pruebas.areametro.com)
+    )
+  )"
+amva<- dbConnect(drv,username="humboldt",password="Colombia2022",dbname=connect.string)
+dbListTables(amva)
+dbGetQuery(amva,"SELECT * FROM user_sequences")
+
+```
+
+## Delete tables to get an empty schema
+```{r}
+dbSendQuery(amva,"DROP TABLE DEPLOYMENT CASCADE CONSTRAINT")
+dbSendQuery(amva,"DROP TABLE GEO_LOG CASCADE CONSTRAINT")
+dbSendQuery(amva,"DROP TABLE LIFE_STAGE CASCADE CONSTRAINT")
+dbSendQuery(amva,"DROP TABLE MODEL CASCADE CONSTRAINT")
+dbSendQuery(amva,"DROP TABLE SUPPLIER CASCADE CONSTRAINT")
+dbSendQuery(amva,"DROP TABLE TAXON CASCADE CONSTRAINT")
+dbSendQuery(amva,"DROP TABLE TRACKER CASCADE CONSTRAINT")
+dbSendQuery(amva,"DROP TABLE INDIVIDUAL CASCADE CONSTRAINT")
+dbSendQuery(amva,"DROP SEQUENCE CD_TRACKER_SEQ")
+dbSendQuery(amva,"DROP SEQUENCE CD_SUPPLIER_SEQ")
+dbSendQuery(amva,"DROP SEQUENCE CD_MODEL_SEQ")
+dbSendQuery(amva,"DROP SEQUENCE CD_TAXON_SEQ")
+dbSendQuery(amva,"DROP SEQUENCE CD_INDIVIDUAL_SEQ")
+dbSendQuery(amva,"DROP SEQUENCE CD_LOG_SEQ")
+dbSendQuery(amva,"DROP SEQUENCE CD_DEPLOYMENT_SEQ")
+```
+
+## Recreate the tables from the SQL script
+
+```{sql, connection=amva,file="./OracleDB.sql",}
+
+```
+
+
+## Sending movebank data in temporary tables
+
+```{r}
+colnames(suppliers)<-toupper(colnames(suppliers))
+colnames(models)<-toupper(colnames(models))
+colnames(tracker)<-toupper(colnames(tracker))
+colnames(lifestage)<-toupper(colnames(lifestage))
+colnames(taxo)<-toupper(colnames(taxo))
+colnames(individual)<-toupper(colnames(individual))
+colnames(deployment)<-toupper(colnames(deployment))
+colnames(geo_log)<-toupper(colnames(geo_log))
+dbWriteTable(conn=amva,name="TMP_SUPPLIER",suppliers,overwrite=T)
+dbWriteTable(conn=amva,name="TMP_MODEL",models,overwrite=T)
+dbWriteTable(conn=amva,name="TMP_TRACKER",tracker,overwrite=T)
+dbWriteTable(conn=amva,name="TMP_LIFE_STAGE",lifestage,overwrite=T)
+dbWriteTable(conn=amva,name="TMP_TAXON",taxo,overwrite=T)
+dbWriteTable(conn=amva,name="TMP_INDIVIDUAL",individual,overwrite=T)
+dbWriteTable(conn=amva,name="TMP_DEPLOYMENT",deployment,overwrite=T)
+Sys.getenv()
+Sys.setenv(TZ="America/Bogota")
+Sys.setenv(ORA_SDTZ="America/Bogota")
+geo_log$TIMESTAMP<-as.character(geo_log$TIMESTAMP)
+dbWriteTable(conn=amva,name="TMP_GEO_LOG",geo_log,overwrite=T)
+```
+## Integrating the data into the tables
+```{r}
+dbGetQuery(amva,'INSERT INTO supplier(supplier,supplier_short)
+           SELECT * FROM tmp_supplier')
+dbCommit(amva)
+dbGetQuery(amva,'INSERT INTO model(cd_supplier,model,model_short)
+SELECT cd_supplier, model,  tm.model_short
+FROM tmp_model tm
+LEFT JOIN supplier s ON tm.supplier_short=s.supplier_short ;')
+dbCommit(amva)
+```
+
