@@ -1,0 +1,3 @@
+Here we describe how to store data in a Oracle database.
+The Oracle database that we used is protected by several layers and you obviously can not connect...
+However we hope that the R and SQL codes you'll find might help you if you use a similar setting.
