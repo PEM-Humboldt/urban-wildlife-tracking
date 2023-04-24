@@ -1,4 +1,4 @@
-require(move2)&require(move)
+require(move)
 passWord <- read.csv("password.csv",h=F)[1,1]
 lgin <- movebankLogin(username="Humboldt_AreaMetropolitana",password=passWord)
 study_id<- getMovebankID("Rastreo fauna área metropolitana del Valle de Aburrá, Colombia",login=lgin)
