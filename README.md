@@ -18,11 +18,46 @@ The repository includes :
     + subfolder ["documentation"](./documentation): analysis flow and bibliography description. An analysis of the literature was conducted in order to assess the potential movement ecology methodology that may be useful in our project
     + subfolder ["analysis"](./data_analysis/analysis): codes and description of the analysis in R
 
-## Rmarkdown
-Most of the codes shown are in rmarkdown document which may be applied and rendered locally in R using:
+## Requirement
+
+In order to use the code presented in the repository, you will need:
+
+* R, with the following packages installed:
+  + ctmm
+  + httr
+  + leaflet
+  + lubridate
+  + move
+  + move2
+  + parallel
+  + rgeos
+  + sp
+  + knitr
+  + rmarkdown
+
+If you want to create a database Oracle such as the one we use in the subfolder ["oracle_amva"](./data_management/oracle_amva) you will need Oracle as well and the package `ROracle` (see https://github.com/marbotte/ROracle for a patched windows version of the package, but refer to the ROracle package from CRAN). *Note that we do not recommend Oracle for such applications, please look for the Postgres + postgis solution and adapt accordingly the SQL and R codes*. 
+
+
+# Rmarkdown documents
+
+Most of the codes of this repository are presented in rmarkdown document (Rmd extension).
+
+You may render them as github documents with the following command in R:
 
 ```
 rmarkdown::render("filename.Rmd")
+```
+
+However, since github document are not easy to read on a local machine, you may want to use:
+
+```
+rmarkdown::render("filename.Rmd", output_format="html_document")
+```
+
+If you have a functional latex distribution on your computer (see tinytex R package to install one otherwise), you may even create pdf report out of the rmarkdown files using:
+
+```
+rmarkdown::render("filename.Rmd", output_format="pdf_document")
 ```
 
 
