@@ -93,7 +93,7 @@ ctmmData_clean <- as.telemetry(mvData_clean)
 
 # Checking and cleaning data
 
-## Individual animal data : Zorro07
+## Example 1 : Zorro07
 
 ### Spatial representation
 
@@ -198,3 +198,110 @@ save(list=c("GUESS","FIT"),file="ctmm_zorro07.RData")
 
 -->
 
+## Example 2 : GarzaAve4
+
+### Spatial representation
+
+GarzaAve4 was a simple example, for which the automatic filters from movebank seem to have exclude all the outliers.
+Now we will look at another example
+
+
+```{r}
+mvData_garzaAve4<-getMovebankData(study = study_id, login = lgin, animalName = "GarzaAve4")
+```
+
+Let's have a first look at the relocation data:
+
+```{r simplegarzaAve4plot}
+plot(mvData_garzaAve4,type="b",pch=16, lwd=.5)
+```
+
+Since it is not easy to look at the relocation data without any spatial reference, we may use some external spatial data:
+
+
+```{r leafletgarzaAve4}
+require(leaflet)
+leaflet(mvData_garzaAve4) %>% addProviderTiles("Esri.WorldImagery") %>% addCircleMarkers(radius = 1, color = "red")
+```
+
+
+### Looking at dates and times
+
+The first thing to do is to transform the times to the local timezone:
+```{r}
+require(lubridate)
+timestamps(mvData_garzaAve4) <- with_tz(timestamps(mvData_garzaAve4), tz="America/Bogota")
+```
+
+
+
+```{r}
+hist(timestamps(mvData_garzaAve4),breaks="days",freq=T,las=2, format="%d %b",xlab=NA, main="Number of relocation by date")
+```
+We can see that there has been a long period without relocation data, between the end of November and the beginning of January, and another small one at the end of January.
+
+Now let's make an histogram of the time of the day of the relocations:
+
+```{r}
+# First we extract the hours, min, seconds
+hms_t <- lapply(strsplit(format(timestamps(mvData_garzaAve4),"%H:%M:%S"),":"),as.integer)
+# Then we calculate the number of seconds from 00:00, and represent it in a histogram:
+hist(sapply(hms_t,function(x)x[3]+(60*x[2])+(3600*x[1])),nclass=500,xaxt="n", xlab="Time", main="Histogram of relocation time")
+axis(1,at=seq(0,23*60*60,60*60),paste(0:23,":00",sep=""),las=2)
+```
+
+It seems difficult to find the regularity of time in this data, probably because the frequency have been reprogrammed, so we have two frequency regimes mixed in the data.
+
+
+### Calibration with ctmm
+
+In order to calibrate the devices for coordinates errors, we use datasets of locations that were obtained in the places where the devices were stocked before their deployments. 
+These calibration datasets are downloaded in the movebank format.
+Then a "User Equivalent Range Error" model is made with the function uere.fit:
+
+```{r}
+calibData_garzaAve4<-as.telemetry("../../../uwt_repo_data/calibration/Zorro7.csv")
+plot(calibData_garzaAve4)
+UERE<-uere.fit(calibData_garzaAve4)
+```
+
+Then the model is applied to the telemetry data after deployment:
+
+
+```{r}
+ctmm_garzaAve4<-as.telemetry(mvData_garzaAve4)
+uere(ctmm_garzaAve4) <- UERE
+```
+
+
+```{r}
+plot(ctmm_garzaAve4,error=2)
+```
+
+In the following graph, location are represented in a red scale depending on their distance to the previous location, and a blue scale represent the average speed of the trajectories
+
+
+`ctmm` allows then to find outliers, based on these error and the calculation of average speed of the individual between 2 relocations.
+
+```{r}
+outlie(ctmm_garzaAve4) -> OUT
+plot(OUT,units=F)
+```
+
+In this particular case, there is no particularly clear outlier (note that the highest average velocity correspond to 0.3 $m.s^{-1}$, or approx. 1 $km.h^{-1}$).
+
+
+<!--
+```r
+require(parallel)
+GUESS<-ctmm.guess(ctmm_garzaAve4,CTMM=ctmm(error=T),interactive = F)
+FIT<-ctmm.select(ctmm_garzaAve4,GUESS,trace=T, cores=0)
+```
+
+```r
+save(list=c("GUESS","FIT"),file="ctmm_garzaAve4.RData")
+```
+
+-->
+
+##
