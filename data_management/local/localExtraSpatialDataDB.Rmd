@@ -217,7 +217,7 @@ rm ../../../uwt_repo_data/extra_spatial/RutasMenorCosto_wgs84.tif
 The raster can be called in R using:
 ```{r least_cost_plot}
 lc_rast <- pgGetRast(conn = extraSp, name="least_cost", rast="the_rast")
-plot(ct_rast)
+plot(lc_rast)
 ```
 
 

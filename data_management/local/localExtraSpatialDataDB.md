@@ -2,7 +2,7 @@ Creating a local database of extra spatial data to be associated with
 movement data
 ================
 Marius Bottin
-2023-04-25
+2023-04-26
 
 - [Creating the database](#creating-the-database)
 - [Administrative boundaries](#administrative-boundaries)
@@ -240,6 +240,11 @@ projection system from the data we will obtain from movebank:
 gdalwarp -t_srs EPSG:4326 ../../../uwt_repo_data/extra_spatial/Circuitos_electricos.tif ../../../uwt_repo_data/extra_spatial/Circuitos_electricos_wgs84.tif
 ```
 
+    ## Creating output file that is 3816P x 4378L.
+    ## Processing ../../../uwt_repo_data/extra_spatial/Circuitos_electricos.tif [1/1] : 0Using internal nodata values (e.g. 15) for image ../../../uwt_repo_data/extra_spatial/Circuitos_electricos.tif.
+    ## Copying nodata values from source ../../../uwt_repo_data/extra_spatial/Circuitos_electricos.tif to destination ../../../uwt_repo_data/extra_spatial/Circuitos_electricos_wgs84.tif.
+    ## ...10...20...30...40...50...60...70...80...90...100 - done.
+
 In order to include the table containing this data in the database, we
 use the following bash command:
 
@@ -247,6 +252,19 @@ use the following bash command:
 raster2pgsql -c -N 15 -s 4326 -I -C -M ../../../uwt_repo_data/extra_spatial/Circuitos_electricos_wgs84.tif -t 100x100 -f the_rast -q circ_theory | psql move_extra_sp -b > /dev/null
 rm ../../../uwt_repo_data/extra_spatial/Circuitos_electricos_wgs84.tif
 ```
+
+    ## Processing 1/1: ../../../uwt_repo_data/extra_spatial/Circuitos_electricos_wgs84.tif
+    ## NOTICE:  Adding SRID constraint
+    ## NOTICE:  Adding scale-X constraint
+    ## NOTICE:  Adding scale-Y constraint
+    ## NOTICE:  Adding blocksize-X constraint
+    ## NOTICE:  Adding blocksize-Y constraint
+    ## NOTICE:  Adding alignment constraint
+    ## NOTICE:  Adding number of bands constraint
+    ## NOTICE:  Adding pixel type constraint
+    ## NOTICE:  Adding nodata value constraint
+    ## NOTICE:  Adding out-of-database constraint
+    ## NOTICE:  Adding maximum extent constraint
 
 The raster can be called in R using:
 
@@ -348,6 +366,11 @@ projection system from the data we will obtain from movebank:
 gdalwarp -t_srs EPSG:4326 ../../../uwt_repo_data/extra_spatial/RutasMenorCosto.tif ../../../uwt_repo_data/extra_spatial/RutasMenorCosto_wgs84.tif
 ```
 
+    ## Creating output file that is 3816P x 4378L.
+    ## Processing ../../../uwt_repo_data/extra_spatial/RutasMenorCosto.tif [1/1] : 0Using internal nodata values (e.g. -2.14748e+09) for image ../../../uwt_repo_data/extra_spatial/RutasMenorCosto.tif.
+    ## Copying nodata values from source ../../../uwt_repo_data/extra_spatial/RutasMenorCosto.tif to destination ../../../uwt_repo_data/extra_spatial/RutasMenorCosto_wgs84.tif.
+    ## ...10...20...30...40...50...60...70...80...90...100 - done.
+
 In order to include the table containing this data in the database, we
 use the following bash command:
 
@@ -356,11 +379,24 @@ raster2pgsql -c -N -2147483647 -s 4326 -I -C -M ../../../uwt_repo_data/extra_spa
 rm ../../../uwt_repo_data/extra_spatial/RutasMenorCosto_wgs84.tif
 ```
 
+    ## Processing 1/1: ../../../uwt_repo_data/extra_spatial/RutasMenorCosto_wgs84.tif
+    ## NOTICE:  Adding SRID constraint
+    ## NOTICE:  Adding scale-X constraint
+    ## NOTICE:  Adding scale-Y constraint
+    ## NOTICE:  Adding blocksize-X constraint
+    ## NOTICE:  Adding blocksize-Y constraint
+    ## NOTICE:  Adding alignment constraint
+    ## NOTICE:  Adding number of bands constraint
+    ## NOTICE:  Adding pixel type constraint
+    ## NOTICE:  Adding nodata value constraint
+    ## NOTICE:  Adding out-of-database constraint
+    ## NOTICE:  Adding maximum extent constraint
+
 The raster can be called in R using:
 
 ``` r
 lc_rast <- pgGetRast(conn = extraSp, name = "least_cost", rast = "the_rast")
-plot(ct_rast)
+plot(lc_rast)
 ```
 
 ![](Fig/extraDB_least_cost_plot-1.jpeg)<!-- -->
@@ -456,6 +492,11 @@ projection system from the data we will obtain from movebank:
 gdalwarp -t_srs EPSG:4326 ../../../uwt_repo_data/extra_spatial/GradoNodal.tif ../../../uwt_repo_data/extra_spatial/GradoNodal_wgs84.tif
 ```
 
+    ## Creating output file that is 19084P x 21890L.
+    ## Processing ../../../uwt_repo_data/extra_spatial/GradoNodal.tif [1/1] : 0Using internal nodata values (e.g. 255) for image ../../../uwt_repo_data/extra_spatial/GradoNodal.tif.
+    ## Copying nodata values from source ../../../uwt_repo_data/extra_spatial/GradoNodal.tif to destination ../../../uwt_repo_data/extra_spatial/GradoNodal_wgs84.tif.
+    ## ...10...20...30...40...50...60...70...80...90...100 - done.
+
 In order to include the table containing this data in the database, we
 use the following bash command:
 
@@ -463,6 +504,19 @@ use the following bash command:
 raster2pgsql -c -N 255 -s 4326 -I -C -M ../../../uwt_repo_data/extra_spatial/GradoNodal_wgs84.tif -t 100x100 -f the_rast -q node_deg | psql move_extra_sp -b > /dev/null
 rm ../../../uwt_repo_data/extra_spatial/GradoNodal_wgs84.tif
 ```
+
+    ## Processing 1/1: ../../../uwt_repo_data/extra_spatial/GradoNodal_wgs84.tif
+    ## NOTICE:  Adding SRID constraint
+    ## NOTICE:  Adding scale-X constraint
+    ## NOTICE:  Adding scale-Y constraint
+    ## NOTICE:  Adding blocksize-X constraint
+    ## NOTICE:  Adding blocksize-Y constraint
+    ## NOTICE:  Adding alignment constraint
+    ## NOTICE:  Adding number of bands constraint
+    ## NOTICE:  Adding pixel type constraint
+    ## NOTICE:  Adding nodata value constraint
+    ## NOTICE:  Adding out-of-database constraint
+    ## NOTICE:  Adding maximum extent constraint
 
 For some reason this raster has been encoded in a way that makes it
 impossible to load in R memory. Theoretically, it would be possible (if
@@ -566,6 +620,11 @@ projection system from the data we will obtain from movebank:
 gdalwarp -t_srs EPSG:4326 ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA.tif ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA_wgs84.tif
 ```
 
+    ## Creating output file that is 180P x 193L.
+    ## Processing ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA.tif [1/1] : 0Using internal nodata values (e.g. -3.40282e+38) for image ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA.tif.
+    ## Copying nodata values from source ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA.tif to destination ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA_wgs84.tif.
+    ## ...10...20...30...40...50...60...70...80...90...100 - done.
+
 In order to include the table containing this data in the database, we
 use the following bash command:
 
@@ -573,6 +632,19 @@ use the following bash command:
 raster2pgsql -c -N -3.40282e+38 -s 4326 -I -C -M ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA_wgs84.tif -t 100x100 -f the_rast -q iheh | psql move_extra_sp -b > /dev/null
 rm ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA_wgs84.tif
 ```
+
+    ## Processing 1/1: ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA_wgs84.tif
+    ## NOTICE:  Adding SRID constraint
+    ## NOTICE:  Adding scale-X constraint
+    ## NOTICE:  Adding scale-Y constraint
+    ## NOTICE:  Adding blocksize-X constraint
+    ## NOTICE:  Adding blocksize-Y constraint
+    ## NOTICE:  Adding alignment constraint
+    ## NOTICE:  Adding number of bands constraint
+    ## NOTICE:  Adding pixel type constraint
+    ## NOTICE:  Adding nodata value constraint
+    ## NOTICE:  Adding out-of-database constraint
+    ## NOTICE:  Adding maximum extent constraint
 
 The raster can be called in R using:
 
