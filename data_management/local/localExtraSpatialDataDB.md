@@ -2,11 +2,16 @@ Creating a local database of extra spatial data to be associated with
 movement data
 ================
 Marius Bottin
-2023-04-24
+2023-04-25
 
 - [Creating the database](#creating-the-database)
 - [Administrative boundaries](#administrative-boundaries)
-- [](#section)
+- [Rasters from connectivity
+  analyses](#rasters-from-connectivity-analyses)
+  - [Circuit theory](#circuit-theory)
+  - [Least cost path](#least-cost-path)
+  - [Node degree](#node-degree)
+- [Human pressure index](#human-pressure-index)
 - [Turning off the light and
   leaving](#turning-off-the-light-and-leaving)
 
@@ -107,8 +112,6 @@ pgInsert(extraSp, c("rawdata", "municipios"), municipios, geom = "the_geom",
     overwrite = T)
 ```
 
-    ## [1] TRUE
-
 ``` sql
 CREATE TABLE mpio
 (
@@ -127,7 +130,458 @@ ORDER BY "NAME_1","NAME_2"
 RETURNING mpio.dept, mpio.mpio, mpio.mpio_syno;
 ```
 
-# 
+The map can be called in R directly now, for example, to load all the
+municipalities from the “Antioquia” department:
+
+``` r
+antioquiaMunic <- pgGetGeom(extraSp, query = "SELECT * FROM mpio WHERE dept='Antioquia'",
+    geom = "the_geom")
+```
+
+    ## Returning MultiPolygon types in SpatialPolygons*-class.
+
+``` r
+plot(antioquiaMunic)
+plot(antioquiaMunic[antioquiaMunic$mpio == "Medellín", ], col = "red",
+    add = T)
+```
+
+![](Fig/extraDB_muni_plot-1.jpeg)<!-- -->
+
+# Rasters from connectivity analyses
+
+## Circuit theory
+
+Among the spatial data associated with this project, a model of
+connectivity based on circuit theory was provided by
+`TODO: find who made the model`.
+
+The file containing the resulting data is the file
+“Circuitos_electricos.tif” analysed here with gdalinfo:
+
+``` bash
+gdalinfo ../../../uwt_repo_data/extra_spatial/Circuitos_electricos.tif
+```
+
+    ## Driver: GTiff/GeoTIFF
+    ## Files: ../../../uwt_repo_data/extra_spatial/Circuitos_electricos.tif
+    ## Size is 3806, 4367
+    ## Coordinate System is:
+    ## PROJCRS["MAGNA-SIRGAS / Colombia Bogota zone",
+    ##     BASEGEOGCRS["MAGNA-SIRGAS",
+    ##         DATUM["Marco Geocentrico Nacional de Referencia",
+    ##             ELLIPSOID["GRS 1980",6378137,298.257222101004,
+    ##                 LENGTHUNIT["metre",1]]],
+    ##         PRIMEM["Greenwich",0,
+    ##             ANGLEUNIT["degree",0.0174532925199433]],
+    ##         ID["EPSG",4686]],
+    ##     CONVERSION["Transverse Mercator",
+    ##         METHOD["Transverse Mercator",
+    ##             ID["EPSG",9807]],
+    ##         PARAMETER["Latitude of natural origin",4.59620041666667,
+    ##             ANGLEUNIT["degree",0.0174532925199433],
+    ##             ID["EPSG",8801]],
+    ##         PARAMETER["Longitude of natural origin",-74.0775079166667,
+    ##             ANGLEUNIT["degree",0.0174532925199433],
+    ##             ID["EPSG",8802]],
+    ##         PARAMETER["Scale factor at natural origin",1,
+    ##             SCALEUNIT["unity",1],
+    ##             ID["EPSG",8805]],
+    ##         PARAMETER["False easting",1000000,
+    ##             LENGTHUNIT["metre",1],
+    ##             ID["EPSG",8806]],
+    ##         PARAMETER["False northing",1000000,
+    ##             LENGTHUNIT["metre",1],
+    ##             ID["EPSG",8807]]],
+    ##     CS[Cartesian,2],
+    ##         AXIS["easting",east,
+    ##             ORDER[1],
+    ##             LENGTHUNIT["metre",1]],
+    ##         AXIS["northing",north,
+    ##             ORDER[2],
+    ##             LENGTHUNIT["metre",1]],
+    ##     ID["EPSG",3116]]
+    ## Data axis to CRS axis mapping: 1,2
+    ## Origin = (824341.295913357287645,1205247.393829831155017)
+    ## Pixel Size = (10.000000000000000,-10.000000000000000)
+    ## Metadata:
+    ##   AREA_OR_POINT=Area
+    ## Image Structure Metadata:
+    ##   COMPRESSION=LZW
+    ##   INTERLEAVE=BAND
+    ## Corner Coordinates:
+    ## Upper Left  (  824341.296, 1205247.394) ( 75d39'54.94"W,  6d26'59.09"N)
+    ## Lower Left  (  824341.296, 1161577.394) ( 75d39'50.66"W,  6d 3'18.03"N)
+    ## Upper Right (  862401.296, 1205247.394) ( 75d19'16.70"W,  6d27' 2.53"N)
+    ## Lower Right (  862401.296, 1161577.394) ( 75d19'13.34"W,  6d 3'21.26"N)
+    ## Center      (  843371.296, 1183412.394) ( 75d29'33.90"W,  6d15'10.33"N)
+    ## Band 1 Block=128x128 Type=Byte, ColorInterp=Gray
+    ##   Min=1.000 Max=10.000 
+    ##   Minimum=1.000, Maximum=10.000, Mean=4.356, StdDev=1.969
+    ##   NoData Value=15
+    ##   Metadata:
+    ##     STATISTICS_MAXIMUM=10
+    ##     STATISTICS_MEAN=4.3559515399104
+    ##     STATISTICS_MINIMUM=1
+    ##     STATISTICS_SKIPFACTORX=1
+    ##     STATISTICS_SKIPFACTORY=1
+    ##     STATISTICS_STDDEV=1.9688445412924
+
+The important information that we can gather from gdalinfo are:
+
+- the projection system: MAGNAS-SIRGAS/Colombia Bogotá Zone (SRID: 3116)
+- the range of value from the pixel: 1 to 10
+- the NoData value: 15
+
+First we re-project the data to the SRID 4326 (WGS84) which is the usual
+projection system from the data we will obtain from movebank:
+
+``` bash
+gdalwarp -t_srs EPSG:4326 ../../../uwt_repo_data/extra_spatial/Circuitos_electricos.tif ../../../uwt_repo_data/extra_spatial/Circuitos_electricos_wgs84.tif
+```
+
+In order to include the table containing this data in the database, we
+use the following bash command:
+
+``` bash
+raster2pgsql -c -N 15 -s 4326 -I -C -M ../../../uwt_repo_data/extra_spatial/Circuitos_electricos_wgs84.tif -t 100x100 -f the_rast -q circ_theory | psql move_extra_sp -b > /dev/null
+rm ../../../uwt_repo_data/extra_spatial/Circuitos_electricos_wgs84.tif
+```
+
+The raster can be called in R using:
+
+``` r
+ct_rast <- pgGetRast(conn = extraSp, name = "circ_theory", rast = "the_rast")
+plot(ct_rast)
+```
+
+![](Fig/extraDB_circuit_theory_plot-1.jpeg)<!-- -->
+
+## Least cost path
+
+Another connectivity model was run to create a least cost path raster,
+in which the values of the raster represent the connectivity “cost”.
+
+The file containing the resulting data is the file “RutasMenorCosto.tif”
+analysed here with gdalinfo:
+
+``` bash
+gdalinfo ../../../uwt_repo_data/extra_spatial/RutasMenorCosto.tif
+```
+
+    ## Driver: GTiff/GeoTIFF
+    ## Files: ../../../uwt_repo_data/extra_spatial/RutasMenorCosto.tif
+    ## Size is 3806, 4367
+    ## Coordinate System is:
+    ## PROJCRS["MAGNA_Transverse_Mercator",
+    ##     BASEGEOGCRS["MAGNA-SIRGAS",
+    ##         DATUM["Marco Geocentrico Nacional de Referencia",
+    ##             ELLIPSOID["GRS 1980",6378137,298.257222101004,
+    ##                 LENGTHUNIT["metre",1]]],
+    ##         PRIMEM["Greenwich",0,
+    ##             ANGLEUNIT["degree",0.0174532925199433]],
+    ##         ID["EPSG",4686]],
+    ##     CONVERSION["Transverse Mercator",
+    ##         METHOD["Transverse Mercator",
+    ##             ID["EPSG",9807]],
+    ##         PARAMETER["Latitude of natural origin",4.59620041666667,
+    ##             ANGLEUNIT["degree",0.0174532925199433],
+    ##             ID["EPSG",8801]],
+    ##         PARAMETER["Longitude of natural origin",-74.0775079166667,
+    ##             ANGLEUNIT["degree",0.0174532925199433],
+    ##             ID["EPSG",8802]],
+    ##         PARAMETER["Scale factor at natural origin",1,
+    ##             SCALEUNIT["unity",1],
+    ##             ID["EPSG",8805]],
+    ##         PARAMETER["False easting",1000000,
+    ##             LENGTHUNIT["metre",1],
+    ##             ID["EPSG",8806]],
+    ##         PARAMETER["False northing",1000000,
+    ##             LENGTHUNIT["metre",1],
+    ##             ID["EPSG",8807]]],
+    ##     CS[Cartesian,2],
+    ##         AXIS["easting",east,
+    ##             ORDER[1],
+    ##             LENGTHUNIT["metre",1,
+    ##                 ID["EPSG",9001]]],
+    ##         AXIS["northing",north,
+    ##             ORDER[2],
+    ##             LENGTHUNIT["metre",1,
+    ##                 ID["EPSG",9001]]]]
+    ## Data axis to CRS axis mapping: 1,2
+    ## Origin = (824341.295913356589153,1205247.393829831155017)
+    ## Pixel Size = (10.000000000000000,-10.000000000000000)
+    ## Metadata:
+    ##   AREA_OR_POINT=Area
+    ## Image Structure Metadata:
+    ##   COMPRESSION=LZW
+    ##   INTERLEAVE=BAND
+    ## Corner Coordinates:
+    ## Upper Left  (  824341.296, 1205247.394) ( 75d39'54.94"W,  6d26'59.09"N)
+    ## Lower Left  (  824341.296, 1161577.394) ( 75d39'50.66"W,  6d 3'18.03"N)
+    ## Upper Right (  862401.296, 1205247.394) ( 75d19'16.70"W,  6d27' 2.53"N)
+    ## Lower Right (  862401.296, 1161577.394) ( 75d19'13.34"W,  6d 3'21.26"N)
+    ## Center      (  843371.296, 1183412.394) ( 75d29'33.90"W,  6d15'10.33"N)
+    ## Band 1 Block=128x128 Type=Int32, ColorInterp=Gray
+    ##   Min=1.000 Max=10.000 
+    ##   Minimum=1.000, Maximum=10.000, Mean=5.118, StdDev=2.809
+    ##   NoData Value=-2147483647
+    ##   Metadata:
+    ##     STATISTICS_MAXIMUM=10
+    ##     STATISTICS_MEAN=5.118474164969
+    ##     STATISTICS_MINIMUM=1
+    ##     STATISTICS_SKIPFACTORX=1
+    ##     STATISTICS_SKIPFACTORY=1
+    ##     STATISTICS_STDDEV=2.8086435061105
+
+The important information that we can gather from gdalinfo are:
+
+- the projection system: Transverse mercator MAGNAS-SIRGAS/Colombia
+  Bogotá Zone (SRID: 4686 … not sure!)
+- the range of value from the pixel: 1 to 10
+- the NoData value: -2147483647
+
+First we re-project the data to the SRID 4326 (WGS84) which is the usual
+projection system from the data we will obtain from movebank:
+
+``` bash
+gdalwarp -t_srs EPSG:4326 ../../../uwt_repo_data/extra_spatial/RutasMenorCosto.tif ../../../uwt_repo_data/extra_spatial/RutasMenorCosto_wgs84.tif
+```
+
+In order to include the table containing this data in the database, we
+use the following bash command:
+
+``` bash
+raster2pgsql -c -N -2147483647 -s 4326 -I -C -M ../../../uwt_repo_data/extra_spatial/RutasMenorCosto_wgs84.tif -t 100x100 -f the_rast -q least_cost | psql move_extra_sp -b > /dev/null
+rm ../../../uwt_repo_data/extra_spatial/RutasMenorCosto_wgs84.tif
+```
+
+The raster can be called in R using:
+
+``` r
+lc_rast <- pgGetRast(conn = extraSp, name = "least_cost", rast = "the_rast")
+plot(ct_rast)
+```
+
+![](Fig/extraDB_least_cost_plot-1.jpeg)<!-- -->
+
+## Node degree
+
+Another connectivity model was run to create a node degree calculation
+for green area in the metropolitan area. I am not yet sure what
+represent exactly the values between the green areas…
+
+The file containing the resulting data is the file “GradoNodal.tif”
+analysed here with gdalinfo:
+
+``` bash
+gdalinfo ../../../uwt_repo_data/extra_spatial/GradoNodal.tif
+```
+
+    ## Driver: GTiff/GeoTIFF
+    ## Files: ../../../uwt_repo_data/extra_spatial/GradoNodal.tif
+    ## Size is 19032, 21833
+    ## Coordinate System is:
+    ## PROJCRS["MAGNA-SIRGAS / Colombia Bogota zone",
+    ##     BASEGEOGCRS["MAGNA-SIRGAS",
+    ##         DATUM["Marco Geocentrico Nacional de Referencia",
+    ##             ELLIPSOID["GRS 1980",6378137,298.257222101004,
+    ##                 LENGTHUNIT["metre",1]]],
+    ##         PRIMEM["Greenwich",0,
+    ##             ANGLEUNIT["degree",0.0174532925199433]],
+    ##         ID["EPSG",4686]],
+    ##     CONVERSION["Transverse Mercator",
+    ##         METHOD["Transverse Mercator",
+    ##             ID["EPSG",9807]],
+    ##         PARAMETER["Latitude of natural origin",4.59620041666667,
+    ##             ANGLEUNIT["degree",0.0174532925199433],
+    ##             ID["EPSG",8801]],
+    ##         PARAMETER["Longitude of natural origin",-74.0775079166667,
+    ##             ANGLEUNIT["degree",0.0174532925199433],
+    ##             ID["EPSG",8802]],
+    ##         PARAMETER["Scale factor at natural origin",1,
+    ##             SCALEUNIT["unity",1],
+    ##             ID["EPSG",8805]],
+    ##         PARAMETER["False easting",1000000,
+    ##             LENGTHUNIT["metre",1],
+    ##             ID["EPSG",8806]],
+    ##         PARAMETER["False northing",1000000,
+    ##             LENGTHUNIT["metre",1],
+    ##             ID["EPSG",8807]]],
+    ##     CS[Cartesian,2],
+    ##         AXIS["easting",east,
+    ##             ORDER[1],
+    ##             LENGTHUNIT["metre",1]],
+    ##         AXIS["northing",north,
+    ##             ORDER[2],
+    ##             LENGTHUNIT["metre",1]],
+    ##     ID["EPSG",3116]]
+    ## Data axis to CRS axis mapping: 1,2
+    ## Origin = (824341.295913357287645,1205243.393829831155017)
+    ## Pixel Size = (2.000000000000000,-2.000000000000000)
+    ## Metadata:
+    ##   AREA_OR_POINT=Area
+    ## Image Structure Metadata:
+    ##   COMPRESSION=LZW
+    ##   INTERLEAVE=BAND
+    ## Corner Coordinates:
+    ## Upper Left  (  824341.296, 1205243.394) ( 75d39'54.94"W,  6d26'58.96"N)
+    ## Lower Left  (  824341.296, 1161577.394) ( 75d39'50.66"W,  6d 3'18.03"N)
+    ## Upper Right (  862405.296, 1205243.394) ( 75d19'16.57"W,  6d27' 2.40"N)
+    ## Lower Right (  862405.296, 1161577.394) ( 75d19'13.21"W,  6d 3'21.26"N)
+    ## Center      (  843373.296, 1183410.394) ( 75d29'33.84"W,  6d15'10.27"N)
+    ## Band 1 Block=128x128 Type=Byte, ColorInterp=Gray
+    ##   Min=1.000 Max=10.000 
+    ##   Minimum=1.000, Maximum=10.000, Mean=7.815, StdDev=2.085
+    ##   NoData Value=255
+    ##   Metadata:
+    ##     STATISTICS_MAXIMUM=10
+    ##     STATISTICS_MEAN=7.815003136826
+    ##     STATISTICS_MINIMUM=1
+    ##     STATISTICS_SKIPFACTORX=1
+    ##     STATISTICS_SKIPFACTORY=1
+    ##     STATISTICS_STDDEV=2.0845640489898
+
+The important information that we can gather from gdalinfo are:
+
+- the projection system: MAGNAS-SIRGAS/Colombia Bogotá Zone (SRID: 3116
+  … not sure!)
+- the range of value from the pixel: 1 to 10
+- the NoData value: 255
+
+First we re-project the data to the SRID 4326 (WGS84) which is the usual
+projection system from the data we will obtain from movebank:
+
+``` bash
+gdalwarp -t_srs EPSG:4326 ../../../uwt_repo_data/extra_spatial/GradoNodal.tif ../../../uwt_repo_data/extra_spatial/GradoNodal_wgs84.tif
+```
+
+In order to include the table containing this data in the database, we
+use the following bash command:
+
+``` bash
+raster2pgsql -c -N 255 -s 4326 -I -C -M ../../../uwt_repo_data/extra_spatial/GradoNodal_wgs84.tif -t 100x100 -f the_rast -q node_deg | psql move_extra_sp -b > /dev/null
+rm ../../../uwt_repo_data/extra_spatial/GradoNodal_wgs84.tif
+```
+
+For some reason this raster has been encoded in a way that makes it
+impossible to load in R memory. Theoretically, it would be possible (if
+the raster was not that heavy) to apply:
+
+``` r
+nd_rast <- pgGetRast(conn = extraSp, name="node_deg", rast="the_rast")
+plot(nd_rast)
+```
+
+TODO: It appears that the error comes from a problematic handling of the
+noData value, which seems to be the case in qgis as well…
+
+# Human pressure index
+
+A human pressure index was calculated on the metropolitan area (IHEH,
+Correa et al. 2020)
+
+The file containing the resulting data is the file “IHEH_2019_AMVA.tif”
+analysed here with gdalinfo:
+
+``` bash
+gdalinfo ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA.tif
+```
+
+    ## Driver: GTiff/GeoTIFF
+    ## Files: ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA.tif
+    ##        ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA.tif.aux.xml
+    ## Size is 180, 192
+    ## Coordinate System is:
+    ## PROJCRS["MAGNA_Transverse_Mercator",
+    ##     BASEGEOGCRS["MAGNA-SIRGAS",
+    ##         DATUM["Marco Geocentrico Nacional de Referencia",
+    ##             ELLIPSOID["GRS 1980",6378137,298.257222101004,
+    ##                 LENGTHUNIT["metre",1]]],
+    ##         PRIMEM["Greenwich",0,
+    ##             ANGLEUNIT["degree",0.0174532925199433]],
+    ##         ID["EPSG",4686]],
+    ##     CONVERSION["Transverse Mercator",
+    ##         METHOD["Transverse Mercator",
+    ##             ID["EPSG",9807]],
+    ##         PARAMETER["Latitude of natural origin",4.59620041666667,
+    ##             ANGLEUNIT["degree",0.0174532925199433],
+    ##             ID["EPSG",8801]],
+    ##         PARAMETER["Longitude of natural origin",-74.0775079166667,
+    ##             ANGLEUNIT["degree",0.0174532925199433],
+    ##             ID["EPSG",8802]],
+    ##         PARAMETER["Scale factor at natural origin",1,
+    ##             SCALEUNIT["unity",1],
+    ##             ID["EPSG",8805]],
+    ##         PARAMETER["False easting",1000000,
+    ##             LENGTHUNIT["metre",1],
+    ##             ID["EPSG",8806]],
+    ##         PARAMETER["False northing",1000000,
+    ##             LENGTHUNIT["metre",1],
+    ##             ID["EPSG",8807]]],
+    ##     CS[Cartesian,2],
+    ##         AXIS["easting",east,
+    ##             ORDER[1],
+    ##             LENGTHUNIT["metre",1,
+    ##                 ID["EPSG",9001]]],
+    ##         AXIS["northing",north,
+    ##             ORDER[2],
+    ##             LENGTHUNIT["metre",1,
+    ##                 ID["EPSG",9001]]]]
+    ## Data axis to CRS axis mapping: 1,2
+    ## Origin = (818314.541591455694288,1212300.354518501786515)
+    ## Pixel Size = (309.738197399999876,-309.738197399999876)
+    ## Metadata:
+    ##   AREA_OR_POINT=Area
+    ## Image Structure Metadata:
+    ##   INTERLEAVE=BAND
+    ## Corner Coordinates:
+    ## Upper Left  (  818314.542, 1212300.355) ( 75d43'11.74"W,  6d30'47.97"N)
+    ## Lower Left  (  818314.542, 1152830.621) ( 75d43' 5.71"W,  5d58'32.83"N)
+    ## Upper Right (  874067.417, 1212300.355) ( 75d12'57.63"W,  6d30'52.97"N)
+    ## Lower Right (  874067.417, 1152830.621) ( 75d12'53.45"W,  5d58'37.41"N)
+    ## Center      (  846190.979, 1182565.488) ( 75d28' 2.13"W,  6d14'43.02"N)
+    ## Band 1 Block=128x128 Type=Float32, ColorInterp=Gray
+    ##   Min=25.714 Max=100.000 
+    ##   Minimum=25.714, Maximum=100.000, Mean=69.840, StdDev=18.434
+    ##   NoData Value=-3.4028235e+38
+    ##   Metadata:
+    ##     STATISTICS_MAXIMUM=100.00001525879
+    ##     STATISTICS_MEAN=69.83986545391
+    ##     STATISTICS_MINIMUM=25.714290618896
+    ##     STATISTICS_STDDEV=18.433841865855
+    ##     STATISTICS_VALID_PERCENT=35.03
+
+The important information that we can gather from gdalinfo are:
+
+- the projection system: Transverse mercator MAGNAS-SIRGAS/Colombia
+  Bogotá Zone (SRID: 4686 … not sure!)
+- the range of value from the pixel: 1 to 100
+- the NoData value: -3.40282e+38
+
+First we re-project the data to the SRID 4326 (WGS84) which is the usual
+projection system from the data we will obtain from movebank:
+
+``` bash
+gdalwarp -t_srs EPSG:4326 ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA.tif ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA_wgs84.tif
+```
+
+In order to include the table containing this data in the database, we
+use the following bash command:
+
+``` bash
+raster2pgsql -c -N -3.40282e+38 -s 4326 -I -C -M ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA_wgs84.tif -t 100x100 -f the_rast -q iheh | psql move_extra_sp -b > /dev/null
+rm ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA_wgs84.tif
+```
+
+The raster can be called in R using:
+
+``` r
+iheh_rast <- pgGetRast(conn = extraSp, name = "iheh", rast = "the_rast")
+plot(iheh_rast)
+```
+
+![](Fig/extraDB_iheh_plot-1.jpeg)<!-- -->
 
 # Turning off the light and leaving
 

@@ -42,6 +42,8 @@ require(rpostgis)
 require(sp)
 &
 require(geodata)
+&
+require(DBI)
 )
 
 knitr::opts_chunk$set(cache=T,tidy.opts = list(width.cutoff = 70), tidy = TRUE, fig.path="Fig/extraDB_",echo=T)
@@ -51,6 +53,7 @@ knitr::knit_hooks$set(chunk = function(x, options) {
   paste0("\n \\", "footnotesize","\n\n", x, "\n\n \\normalsize\n\n")
 })
 options(knitr.kable.NA = "---")
+dirData <- "../../../uwt_repo_data/extra_spatial/"
 set.seed(9835)
 ```
 
@@ -111,7 +114,7 @@ pgInsert(extraSp,c("rawdata","municipios"),municipios,geom="the_geom",overwrite 
 ```
 
 
-```{sql, eval = !dbExistsTable(extraSp,"mpio")}
+```{sql eval = !dbExistsTable(extraSp,"mpio")}
 CREATE TABLE mpio
 (
     mpio_id smallserial PRIMARY KEY,
@@ -129,11 +132,174 @@ ORDER BY "NAME_1","NAME_2"
 RETURNING mpio.dept, mpio.mpio, mpio.mpio_syno;
 ```
 
-# 
+
+The map can be called in R directly now, for example, to load all the municipalities from the "Antioquia" department:
+```{r muni_plot}
+antioquiaMunic <- pgGetGeom(extraSp, query= "SELECT * FROM mpio WHERE dept='Antioquia'",geom = "the_geom")
+plot(antioquiaMunic)
+plot(antioquiaMunic[antioquiaMunic$mpio=="Medellín",], col="red",add=T)
+```
+
+
+
+# Rasters from connectivity analyses
+
+## Circuit theory
+
+Among the spatial data associated with this project, a model of connectivity based on circuit theory was provided by `TODO: find who made the model`.
+
+The file containing the resulting data is the file "Circuitos_electricos.tif" analysed here with gdalinfo:
+
+```{bash}
+gdalinfo ../../../uwt_repo_data/extra_spatial/Circuitos_electricos.tif
+```
+
+The important information that we can gather from gdalinfo are:
+
+* the projection system: MAGNAS-SIRGAS/Colombia Bogotá Zone (SRID: 3116)
+* the range of value from the pixel: 1 to 10
+* the NoData value: 15
+
+First we re-project the data to the SRID 4326 (WGS84) which is the usual projection system from the data we will obtain from movebank:
+
+```{bash, eval=!dbExistsTable(extraSp,"circ_theory")}
+gdalwarp -t_srs EPSG:4326 ../../../uwt_repo_data/extra_spatial/Circuitos_electricos.tif ../../../uwt_repo_data/extra_spatial/Circuitos_electricos_wgs84.tif
+```
+
+
+
+In order to include the table containing this data in the database, we use the following bash command:
+
+```{bash eval=!dbExistsTable(extraSp,"circ_theory")}
+raster2pgsql -c -N 15 -s 4326 -I -C -M ../../../uwt_repo_data/extra_spatial/Circuitos_electricos_wgs84.tif -t 100x100 -f the_rast -q circ_theory | psql move_extra_sp -b > /dev/null
+rm ../../../uwt_repo_data/extra_spatial/Circuitos_electricos_wgs84.tif
+```
+
+The raster can be called in R using:
+```{r circuit_theory_plot}
+ct_rast <- pgGetRast(conn = extraSp, name="circ_theory", rast="the_rast")
+plot(ct_rast)
+```
+
+
+
+## Least cost path
+
+Another connectivity model was run to create a least cost path raster, in which the values of the raster represent the connectivity "cost".
+
+The file containing the resulting data is the file "RutasMenorCosto.tif" analysed here with gdalinfo:
+
+```{bash}
+gdalinfo ../../../uwt_repo_data/extra_spatial/RutasMenorCosto.tif
+```
+
+The important information that we can gather from gdalinfo are:
+
+* the projection system: Transverse mercator MAGNAS-SIRGAS/Colombia Bogotá Zone (SRID: 4686 ... not sure!)
+* the range of value from the pixel: 1 to 10
+* the NoData value: -2147483647
+
+First we re-project the data to the SRID 4326 (WGS84) which is the usual projection system from the data we will obtain from movebank:
+
+```{bash, eval=!dbExistsTable(extraSp,"least_cost")}
+gdalwarp -t_srs EPSG:4326 ../../../uwt_repo_data/extra_spatial/RutasMenorCosto.tif ../../../uwt_repo_data/extra_spatial/RutasMenorCosto_wgs84.tif
+```
+
+
+
+In order to include the table containing this data in the database, we use the following bash command:
+
+```{bash eval=!dbExistsTable(extraSp,"least_cost")}
+raster2pgsql -c -N -2147483647 -s 4326 -I -C -M ../../../uwt_repo_data/extra_spatial/RutasMenorCosto_wgs84.tif -t 100x100 -f the_rast -q least_cost | psql move_extra_sp -b > /dev/null
+rm ../../../uwt_repo_data/extra_spatial/RutasMenorCosto_wgs84.tif
+```
+
+The raster can be called in R using:
+```{r least_cost_plot}
+lc_rast <- pgGetRast(conn = extraSp, name="least_cost", rast="the_rast")
+plot(ct_rast)
+```
+
+
+
+## Node degree
+
+Another connectivity model was run to create a node degree calculation for green area in the metropolitan area. I am not yet sure what represent exactly the values between the green areas...
+
+The file containing the resulting data is the file "GradoNodal.tif" analysed here with gdalinfo:
+
+```{bash}
+gdalinfo ../../../uwt_repo_data/extra_spatial/GradoNodal.tif
+```
+
+The important information that we can gather from gdalinfo are:
+
+* the projection system: MAGNAS-SIRGAS/Colombia Bogotá Zone (SRID: 3116 ... not sure!)
+* the range of value from the pixel: 1 to 10
+* the NoData value: 255
+
+First we re-project the data to the SRID 4326 (WGS84) which is the usual projection system from the data we will obtain from movebank:
+
+```{bash, eval=!dbExistsTable(extraSp,"node_deg")}
+gdalwarp -t_srs EPSG:4326 ../../../uwt_repo_data/extra_spatial/GradoNodal.tif ../../../uwt_repo_data/extra_spatial/GradoNodal_wgs84.tif
+```
+
+
+
+In order to include the table containing this data in the database, we use the following bash command:
+
+```{bash eval=!dbExistsTable(extraSp,"node_deg")}
+raster2pgsql -c -N 255 -s 4326 -I -C -M ../../../uwt_repo_data/extra_spatial/GradoNodal_wgs84.tif -t 100x100 -f the_rast -q node_deg | psql move_extra_sp -b > /dev/null
+rm ../../../uwt_repo_data/extra_spatial/GradoNodal_wgs84.tif
+```
+
+For some reason this raster has been encoded in a way that makes it impossible to load in R memory. Theoretically, it would be possible (if the raster was not that heavy) to apply:
+```r
+nd_rast <- pgGetRast(conn = extraSp, name="node_deg", rast="the_rast")
+plot(nd_rast)
+```
+
+TODO: It appears that the error comes from a problematic handling of the noData value, which seems to be the case in qgis as well...
+
+# Human pressure index
+
+A human pressure index was calculated on the metropolitan area (IHEH, Correa et al. 2020)
+
+The file containing the resulting data is the file "IHEH_2019_AMVA.tif" analysed here with gdalinfo:
+
+```{bash}
+gdalinfo ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA.tif
+```
+
+The important information that we can gather from gdalinfo are:
+
+* the projection system: Transverse mercator MAGNAS-SIRGAS/Colombia Bogotá Zone (SRID: 4686 ... not sure!)
+* the range of value from the pixel: 1 to 100
+* the NoData value: -3.40282e+38
+
+First we re-project the data to the SRID 4326 (WGS84) which is the usual projection system from the data we will obtain from movebank:
+
+```{bash, eval=!dbExistsTable(extraSp,"iheh")}
+gdalwarp -t_srs EPSG:4326 ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA.tif ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA_wgs84.tif
+```
+
+
+
+In order to include the table containing this data in the database, we use the following bash command:
+
+```{bash eval=!dbExistsTable(extraSp,"iheh")}
+raster2pgsql -c -N -3.40282e+38 -s 4326 -I -C -M ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA_wgs84.tif -t 100x100 -f the_rast -q iheh | psql move_extra_sp -b > /dev/null
+rm ../../../uwt_repo_data/extra_spatial/IHEH_2019_AMVA_wgs84.tif
+```
+
+The raster can be called in R using:
+```{r iheh_plot}
+iheh_rast <- pgGetRast(conn = extraSp, name="iheh", rast="the_rast")
+plot(iheh_rast)
+```
 
 # Turning off the light and leaving
 
 ```{r}
 dbDisconnect(extraSp)
 ```
-
