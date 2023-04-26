@@ -1,0 +1,51 @@
+---
+title: "In depth analysis of errors in the movement data and deletion of outliers"
+author: "Marius Bottin"
+date: "`r Sys.Date()`"
+output: 
+    github_document:
+      toc: true
+      toc_depth: 4
+      dev: 'jpeg'
+always_allow_html: true
+---
+
+
+```{r setup, echo=F,message=F,warning=FALSE,results='hide'}
+stopifnot(
+require(RPostgreSQL)
+&
+require(rpostgis)
+&
+require(sp)
+&
+require(geodata)
+&
+require(DBI)
+)
+
+knitr::opts_chunk$set(cache=T,tidy.opts = list(width.cutoff = 70), tidy = TRUE, fig.path="Fig/extraDB_",echo=T)
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  paste0("\n \\", "footnotesize","\n\n", x, "\n\n \\normalsize\n\n")
+})
+options(knitr.kable.NA = "---")
+dirData <- "../../../uwt_repo_data/extra_spatial/"
+set.seed(9835)
+extraSp<-dbConnect(drv = PostgreSQL(), dbname="move_extra_sp")
+# For avoiding setting the connection name in the SQL chunks:
+knitr::opts_chunk$set(connection=extraSp)
+```
+
+# Getting the general data from movebank
+
+Here we will apply the script to get all the data from movebank. 
+If needed, more details are presented in the document [importingCleaningFormatting.Rmd](./importingCleaningFormatting.md)
+
+```{r}
+source("importingMovebankData.R")
+source("movebankFromDirectApi.R")
+source("itis_taxo.R")
+```
+
