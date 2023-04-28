@@ -15,9 +15,30 @@ csl: "./chicago.csl"
 In order to create an analysis plan for the animal tracking data in Medellin and the Aburrá valley, we consulted a few recent papers on the subject.
 The literature on the topic of movement ecology has considerably increased in the last decade and all authors seem to consider that the recent development in the device designs has boosted the analysis possibilities.
 
-In this document, we will present the potential analyses for our data, accounting for the nature of our data, and the objectives of the project: tracking movement of animals in a large Colombian metropole, and deducing some implications in terms of ecological connectivity.
+In this document, we will present the potential analyses for our data, accounting for the nature of our data, and the objectives of the project: tracking movement of animals in a large Colombian metropolis, and deducing some implications in terms of ecological connectivity.
 
-# Analyse types and current developments
+# Analyses: literature and possibilities
 
-While the arena 
-@Seidel2018
+While the arena is evolving rapidly and the movement data analysis framework is not completely stables, the literature usually separate two main fields of analyses [@Seidel2018;@Demsar2015]:
+
+1. trajectory analyses
+1. space-use analyses
+
+Most of the analyses that we can find are dependent on the types and quality of available data [@Edelhoff2016; @Hertel2020; @Thurfjell2014; @Seidel2018].
+For example, one of the main challenge in relocation data analysis is to attribute trajectories and locations to particular behaviors of the individuals [e.g. @Seidel2018; @Demsar2015;@Hertel2020].
+It is clear that having access to a fine spatial description of the environment, a very frequent and precise relocation dataset, and many individuals from species population is necessary to be able to assess and classify precisely the behaviors of the individuals.
+We do not have access in our project to a precise spatial description of the environment in the Metropolitan Area of Medellin (spatial classification of resources), and technical constraints (energy consumption of the GPS collars) do not allow us to have an extremely fine frequency of the relocation data.
+However, several analyses are possible to conduct in our dataset.
+
+The current possibilities explored for our dataset are:
+
+* **Analyses of data errors and outliers through User Equivalent Range Error Model (UERE) calibration** from the `ctmm` package [@Calabrese2016]
+* **Calculation of statistics from the clean relocation data and path metrics** [e.g. @Seidel2018]. There are many statistics to be extracted from a relocation dataset [See table 1 in @Seidel2018 for a list of such statistics]
+* **Visualization (and visual analyses) of relocation data and trajectories through Space Time Cubes** [@Demsar2015]. One of the main difficulties with relocation and trajectory analyses is that the visualization of such quantities of overlapping data. So, in order to be able to distinguish the data, a simple solution consists in using time as a third dimension.
+* **Basic homerange representation** [@Calabrese2016]: homerange analyses are one of the most used analyses for animal movement data. While there are many options to explore in homerange analyses, `ctmm` propose possibilities to automatically apply these analyses in a "basic" batch setup
+* **Analysis of the homerange, relocation and path statistics**
+
+
+
+
+# References
