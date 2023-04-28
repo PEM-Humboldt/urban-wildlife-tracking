@@ -5,6 +5,8 @@ Marius Bottin
 
 - [Analyses: literature and
   possibilities](#analyses-literature-and-possibilities)
+  - [Current analyses](#current-analyses)
+  - [Future potential analyses](#future-potential-analyses)
 - [References](#references)
 
 In order to create an analysis plan for the animal tracking data in
@@ -45,6 +47,8 @@ collars) do not allow us to have an extremely fine frequency of the
 relocation data. However, several analyses are possible to conduct in
 our dataset.
 
+## Current analyses
+
 The current possibilities explored for our dataset are:
 
 - **Analyses of data errors and outliers through User Equivalent Range
@@ -65,7 +69,25 @@ The current possibilities explored for our dataset are:
   movement data. While there are many options to explore in homerange
   analyses, `ctmm` propose possibilities to automatically apply these
   analyses in a “basic” batch setup
-- **Analysis of the homerange, relocation and path statistics**
+- **Analysis of the homerange, relocation and path statistics**:
+  Finally, statistics calculated on homerange, relocation and path
+  analyses will be analysed and presented in a last recapitulative
+  document for all individuals
+
+## Future potential analyses
+
+In the future, extra-analyses may be applied:
+
+- Dodge et al. (2013) shows how to use the “Env-DATA” system in order to
+  add some environmental data to the movement dataset. If further
+  questions (for example the effect of meterology on the movement
+  behavior of the animals) are to be explored with these dataset,
+  Env-DATA might come in handy!
+- Jeltsch et al. (2013) discuss conceptually the relationships between
+  movement ecology and biodiversity ecology. It may be a good reference
+  for going further in the analysis of this dataset in relations to
+  other questions which are developped in the *Instuto Alexander Von
+  Humboldt*
 
 # References
 
@@ -91,6 +113,17 @@ doi:[10.1186/s40462-015-0032-y](https://doi.org/10.1186/s40462-015-0032-y).
 
 </div>
 
+<div id="ref-Dodge2013" class="csl-entry">
+
+Dodge, Somayeh, Gil Bohrer, Rolf Weinzierl, Sarah C Davidson, Roland
+Kays, David Douglas, Sebastian Cruz, Jiawei Han, David Brandes, and
+Martin Wikelski. 2013. “The Environmental-Data Automated Track
+Annotation (Env-DATA) System: Linking Animal Tracks with Environmental
+Data.” *Movement Ecology* 1 (1): 3.
+doi:[10.1186/2051-3933-1-3](https://doi.org/10.1186/2051-3933-1-3).
+
+</div>
+
 <div id="ref-Edelhoff2016" class="csl-entry">
 
 Edelhoff, Hendrik, Johannes Signer, and Niko Balkenhol. 2016. “Path
@@ -106,6 +139,16 @@ Hertel, Anne G., Petri T. Niemelä, Niels J. Dingemanse, and Thomas
 Mueller. 2020. “A Guide for Studying Among-Individual Behavioral
 Variation from Movement Data in the Wild.” *Movement Ecology* 8 (1): 30.
 doi:[10.1186/s40462-020-00216-8](https://doi.org/10.1186/s40462-020-00216-8).
+
+</div>
+
+<div id="ref-Jeltsch2013a" class="csl-entry">
+
+Jeltsch, Florian, Dries Bonte, Guy Pe’er, Björn Reineking, Peter
+Leimgruber, Niko Balkenhol, Boris Schröder, et al. 2013. “Integrating
+Movement Ecology with Biodiversity Research - Exploring New Avenues to
+Address Spatiotemporal Biodiversity Dynamics.” *Movement Ecology* 1 (1):
+6. doi:[10.1186/2051-3933-1-6](https://doi.org/10.1186/2051-3933-1-6).
 
 </div>
 

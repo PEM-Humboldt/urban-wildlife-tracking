@@ -30,13 +30,26 @@ It is clear that having access to a fine spatial description of the environment,
 We do not have access in our project to a precise spatial description of the environment in the Metropolitan Area of Medellin (spatial classification of resources), and technical constraints (energy consumption of the GPS collars) do not allow us to have an extremely fine frequency of the relocation data.
 However, several analyses are possible to conduct in our dataset.
 
+## Current analyses
 The current possibilities explored for our dataset are:
 
 * **Analyses of data errors and outliers through User Equivalent Range Error Model (UERE) calibration** from the `ctmm` package [@Calabrese2016]
 * **Calculation of statistics from the clean relocation data and path metrics** [e.g. @Seidel2018]. There are many statistics to be extracted from a relocation dataset [See table 1 in @Seidel2018 for a list of such statistics]
 * **Visualization (and visual analyses) of relocation data and trajectories through Space Time Cubes** [@Demsar2015]. One of the main difficulties with relocation and trajectory analyses is that the visualization of such quantities of overlapping data. So, in order to be able to distinguish the data, a simple solution consists in using time as a third dimension.
 * **Basic homerange representation** [@Calabrese2016]: homerange analyses are one of the most used analyses for animal movement data. While there are many options to explore in homerange analyses, `ctmm` propose possibilities to automatically apply these analyses in a "basic" batch setup
-* **Analysis of the homerange, relocation and path statistics**
+* **Analysis of the homerange, relocation and path statistics**: Finally, statistics calculated on homerange, relocation and path analyses will be analysed and presented in a last recapitulative document for all individuals
+
+
+## Future potential analyses
+In the future, extra-analyses may be applied:
+
+* @Dodge2013 shows how to use the "Env-DATA" system in order to add some environmental data to the movement dataset. If further questions (for example the effect of meterology on the movement behavior of the animals) are to be explored with these dataset, Env-DATA might come in handy!
+* @Jeltsch2013a discuss conceptually the relationships between movement ecology and biodiversity ecology. It may be a good reference for going further in the analysis of this dataset in relations to other questions which are developped in the *Instuto Alexander Von Humboldt*
+
+
+
+
+
 
 
 
