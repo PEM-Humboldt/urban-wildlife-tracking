@@ -1,0 +1,23 @@
+---
+title: "Building an analysis plan from the 'movement ecology' literature"
+author: "Marius Bottin"
+date: "`r Sys.Date()`"
+output: 
+    github_document:
+      toc: true
+      toc_depth: 4
+      dev: 'jpeg'
+always_allow_html: true
+bibliography: "./AMVA_movement_ecol.bib"
+csl: "./chicago.csl"
+---
+
+In order to create an analysis plan for the animal tracking data in Medellin and the Aburrá valley, we consulted a few recent papers on the subject.
+The literature on the topic of movement ecology has considerably increased in the last decade and all authors seem to consider that the recent development in the device designs has boosted the analysis possibilities.
+
+In this document, we will present the potential analyses for our data, accounting for the nature of our data, and the objectives of the project: tracking movement of animals in a large Colombian metropole, and deducing some implications in terms of ecological connectivity.
+
+# Analyse types and current developments
+
+While the arena 
+@Seidel2018
