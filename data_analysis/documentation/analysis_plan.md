@@ -10,10 +10,6 @@ Marius Bottin
   - [Future potential analyses](#future-potential-analyses)
 - [References](#references)
 
-``` r
-knitr::opts_chunk$set(cache=T,tidy.opts = list(width.cutoff = 70), tidy = TRUE, fig.path="Fig/plan",echo=T)
-```
-
 In order to create an analysis plan for the animal tracking data in
 Medellin and the Aburrá valley, we consulted a few recent papers on the
 subject. The literature on the topic of movement ecology has
@@ -97,6 +93,22 @@ In the future, extra-analyses may be applied:
   for going further in the analysis of this dataset in relations to
   other questions which are developped in the *Instuto Alexander Von
   Humboldt*
+- Teitelbaum et al. (2020) show how to use graph theory to analyse
+  relocation data in relation to connectivity network, it could reveal
+  an efficient way to test whether the connectivity models developped by
+  various institutions have an influence on the species which are
+  included in the movement dataset. In particular, it would allow to
+  differenciate the influence of the connectivity models on birds
+  vs. mammals. For this objective, we may want to study more precisely
+  the Step-Selection Functions presented by Thurfjell, Ciuti, and
+  Boyce (2014) as well.
+- Hertel et al. (2020), Edelhoff, Signer, and Balkenhol (2016) and
+  Demšar et al. (2015) all present various methodologies to characterize
+  specific behaviors, or hidden behavior state from relocation data.
+  While the frequency of our relocation may not be optimal for these
+  types of analyses at a first glance, revisiting this idea after
+  completing the first set of analyses may reveal fruitful for specific
+  questions.
 
 # References
 
@@ -168,6 +180,17 @@ Seidel, Dana Paige, Eric Dougherty, Colin Carlson, and Wayne M. Getz.
 *International Journal of Geographical Information Science* 32 (11).
 Taylor and Francis Ltd.: 2272–93.
 doi:[10.1080/13658816.2018.1498097](https://doi.org/10.1080/13658816.2018.1498097).
+
+</div>
+
+<div id="ref-Teitelbaum2020" class="csl-entry">
+
+Teitelbaum, Claire S., Jeffrey Hepinstall-Cymerman, Anjelika
+Kidd-Weaver, Sonia M. Hernandez, Sonia Altizer, and Richard J. Hall.
+2020. “Urban Specialization Reduces Habitat Connectivity by a Highly
+Mobile Wading Bird.” Article. *Movement Ecology* 8 (1). BioMed Central
+Ltd.
+doi:[10.1186/s40462-020-00233-7](https://doi.org/10.1186/s40462-020-00233-7).
 
 </div>
 

@@ -12,8 +12,8 @@ bibliography: "./AMVA_movement_ecol.bib"
 csl: "./chicago.csl"
 ---
 
-```{r setup}
-knitr::opts_chunk$set(cache=T,tidy.opts = list(width.cutoff = 70), tidy = TRUE, fig.path="Fig/plan",echo=T)
+```{r setup, echo=F}
+knitr::opts_chunk$set(cache=T,tidy.opts = list(width.cutoff = 70), tidy = TRUE, fig.path="Fig/plan")
 ```
 
 
@@ -75,9 +75,7 @@ grViz(diagram = "digraph G {
  set1 -> step1;
  set1 -> step2;
  step2 -> set2 -> {step4 step5 step6 step8};
- step3 -> set3;
- set3 -> step4;
- set3 -> step5;
+ step3 -> set3 -> {step4 step5 step8}
  {step4 step7} -> set4 -> step8
  
 }
@@ -90,6 +88,8 @@ In the future, extra-analyses may be applied:
 
 * @Dodge2013 shows how to use the "Env-DATA" system in order to add some environmental data to the movement dataset. If further questions (for example the effect of meterology on the movement behavior of the animals) are to be explored with these dataset, Env-DATA might come in handy!
 * @Jeltsch2013a discuss conceptually the relationships between movement ecology and biodiversity ecology. It may be a good reference for going further in the analysis of this dataset in relations to other questions which are developped in the *Instuto Alexander Von Humboldt*
+* @Teitelbaum2020 show how to use graph theory to analyse relocation data in relation to connectivity network, it could reveal an efficient way to test whether the connectivity models developped by various institutions have an influence on the species which are included in the movement dataset. In particular, it would allow to differenciate the influence of the connectivity models on birds vs. mammals. For this objective, we may want to study more precisely the Step-Selection Functions presented by @Thurfjell2014 as well.
+* @Hertel2020, @Edelhoff2016 and @Demsar2015 all present various methodologies to characterize specific behaviors, or hidden behavior state from relocation data. While the frequency of our relocation may not be optimal for these types of analyses at a first glance, revisiting this idea after completing the first set of analyses may reveal fruitful for specific questions.
 
 
 
