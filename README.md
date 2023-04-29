@@ -15,7 +15,7 @@ The repository includes :
     + subfolder ["oracle_amva"](./data_management/oracle_amva): storing the data in the AMVA Oracle database
     + subfolder ["local"](data_management/local): local filters and data treatment of the data from movebank
 2. folder ["data_analysis"](./data_analysis): documents and codes for data analysis
-    + subfolder ["documentation"](./documentation): analysis flow and bibliography description. An analysis of the literature was conducted in order to assess the potential movement ecology methodology that may be useful in our project
+    + subfolder ["documentation"](./data_analysis/documentation): analysis flow and bibliography description. An analysis of the literature was conducted in order to assess the potential movement ecology methodology that may be useful in our project
     + subfolder ["analysis"](./data_analysis/analysis): codes and description of the analysis in R
 
 ## Requirement

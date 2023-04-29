@@ -12,6 +12,11 @@ bibliography: "./AMVA_movement_ecol.bib"
 csl: "./chicago.csl"
 ---
 
+```{r setup}
+knitr::opts_chunk$set(cache=T,tidy.opts = list(width.cutoff = 70), tidy = TRUE, fig.path="Fig/plan",echo=T)
+```
+
+
 In order to create an analysis plan for the animal tracking data in Medellin and the Aburrá valley, we consulted a few recent papers on the subject.
 The literature on the topic of movement ecology has considerably increased in the last decade and all authors seem to consider that the recent development in the device designs has boosted the analysis possibilities.
 
@@ -39,6 +44,46 @@ The current possibilities explored for our dataset are:
 * **Basic homerange representation** [@Calabrese2016]: homerange analyses are one of the most used analyses for animal movement data. While there are many options to explore in homerange analyses, `ctmm` propose possibilities to automatically apply these analyses in a "basic" batch setup
 * **Analysis of the homerange, relocation and path statistics**: Finally, statistics calculated on homerange, relocation and path analyses will be analysed and presented in a last recapitulative document for all individuals
 
+
+## Analysis flow
+
+```{r fig.height=5, fig.width=5, echo=FALSE,message=F}
+require(DiagrammeR)
+grViz(diagram = "digraph G {
+ subgraph cluster_analyses{
+ node [fontname = arial, shape = oval]
+  step1 [label = 'Calculating UERE models']
+  step2 [label = 'Filtering outliers and potential erroneous data']
+  step3 [label = 'Putting extra spatial data in a local database']
+  step4 [label = 'Extracting relocation and trajectory statistics']
+  step5 [label = 'Visual analysis of trajectories and relocation in 3D Space Time Cubes']
+  step6 [label = 'Running homerange models']
+  step7 [label = 'Extracting homerange statistics']
+  step8 [label = 'Analysing results from previous steps together']
+  step9 [label = 'Identifying new research questions']
+ label=<<B>Analyses</B>>;
+ fontsize=19
+  step1 -> step2 -> step3 -> step4 -> step5 -> step6 -> step7 -> step8 -> step9;
+ }
+ 
+ node [fontname = Helvetica, shape = tab,style=filled,fillcolor=grey]
+ set1 [label = 'Movebank movement dataset',rank=1]
+ set2 [label = 'Filtered movement dataset',rank=2]
+ set3 [label = 'Extra spatial data',rank=3]
+ set4 [label = 'Statistic collection']
+ set1 -> set2
+ set1 -> step1;
+ set1 -> step2;
+ step2 -> set2 -> {step4 step5 step6 step8};
+ step3 -> set3;
+ set3 -> step4;
+ set3 -> step5;
+ {step4 step7} -> set4 -> step8
+ 
+}
+
+", )
+```
 
 ## Future potential analyses
 In the future, extra-analyses may be applied:

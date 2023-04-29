@@ -6,8 +6,13 @@ Marius Bottin
 - [Analyses: literature and
   possibilities](#analyses-literature-and-possibilities)
   - [Current analyses](#current-analyses)
+  - [Analysis flow](#analysis-flow)
   - [Future potential analyses](#future-potential-analyses)
 - [References](#references)
+
+``` r
+knitr::opts_chunk$set(cache=T,tidy.opts = list(width.cutoff = 70), tidy = TRUE, fig.path="Fig/plan",echo=T)
+```
 
 In order to create an analysis plan for the animal tracking data in
 Medellin and the Aburrá valley, we consulted a few recent papers on the
@@ -73,6 +78,10 @@ The current possibilities explored for our dataset are:
   Finally, statistics calculated on homerange, relocation and path
   analyses will be analysed and presented in a last recapitulative
   document for all individuals
+
+## Analysis flow
+
+![](Fig/planunnamed-chunk-1-1.jpeg)<!-- -->
 
 ## Future potential analyses
 
