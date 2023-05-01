@@ -1,0 +1,417 @@
+---
+title: "Spatial error calibration"
+author: "Marius Bottin"
+date: "`r Sys.Date()`"
+output: 
+    github_document:
+      toc: true
+      toc_depth: 4
+      dev: 'jpeg'
+      df_print: "kable"
+always_allow_html: true
+---
+
+
+```{r setup, echo=F,message=F,warning=FALSE,results='hide'}
+stopifnot(
+require(move)
+  &
+require(ctmm)
+  &
+require(rgeos)
+&
+require(kableExtra)
+&
+require(leaflet)
+  )
+
+knitr::opts_chunk$set(cache=T,tidy.opts = list(width.cutoff = 70), tidy = TRUE, fig.path="Fig/calib_",echo=T)
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  paste0("\n \\", "footnotesize","\n\n", x, "\n\n \\normalsize\n\n")
+})
+options(knitr.kable.NA = "---")
+set.seed(9835)
+```
+
+
+Telemetry data from movebank comes with the HDOP measurement of GPS errors.
+This measurement, however does not give the real error in meter.
+In order to make it interpretable, it should be accompanied by a User Equivalent Range Error (UERE).
+The `ctmm` package propose to fit the UERE with a calibration dataset.
+Thus, calibrated data should be used to extract an estimation of spatial error in each point.
+However, the documentation on how to do that is not very clear.
+In this document, I will explore the calibration process in `ctmm`, in order to better understand how to manage the errors later.
+
+# Getting main information from movebank
+
+
+We first import movebank data, to get the information about animals and deployment, in case they are useful later...
+
+See corresponding R files and/or [importingCleaningFormatting.Rmd](importingCleaningFormatting.md) for more information.
+
+```{r}
+source(file = "./importingMovebankData.R")
+```
+
+
+
+# Importing Calibration data
+
+The calibration data consist in a set of csv files in the movebank csv export format, before deployment, in a place where devices where stored without moving during a period.
+
+```{r}
+folCalib<-"../../../uwt_repo_data/calibration/"
+(calibFiles<-dir(folCalib,pattern="csv"))
+#read.csv files
+CSV_calib<-lapply(paste0(folCalib,calibFiles),read.csv,sep=";")
+names(CSV_calib)<-gsub("\\.csv$","",calibFiles)
+```
+
+## Correcting errors in the calibration files
+
+There are various errors in the calibration files. My guess is that they have been created and/or modified in Excel (which almost always results in errors).
+
+### Dealing with wrong names
+
+The names of the animals are wrong in the files, so we will have to modify them to avoid errors.
+
+The first thing to do is to find the correspondance between movebank names and the calibration files:
+
+```{r}
+aniNames <- animals$local_identifier[animals$number_of_events>20]
+# The calibration files do not have exactly the same names as the animals
+caliNames <- gsub("\\.csv","",dir("../../../uwt_repo_data/calibration/",pattern="csv"))
+
+tabNames <- data.frame(
+  aniNames=aniNames,
+  partLetter=gsub("-","",gsub("^([-A-Za-z]+)([0-9]+)$","\\1",aniNames)),
+  partNumber=as.integer(gsub("^([-A-Za-z]+)([0-9]+)$","\\2",aniNames)),
+  calibName=NA
+)
+matches <- sapply(caliNames,function(x,tab)
+  {
+    let <- gsub("^([A-Za-z]+)([0-9]+$)","\\1",x)
+    num <- gsub("^([A-Za-z]+)([0-9]+$)","\\2",x)
+    which((tab$partLetter==let|(tab$partLetter=="GarzaAve"&let=="Garza"))&tab$partNumber==num)
+  }, tab=tabNames)
+tabNames$calibName[matches]<-caliNames
+kable(tabNames[c("aniNames","calibName")],colnames=c("Movebank name","Calibration file name"))
+```
+
+
+We now replace the names in the data imported from the CSV files:
+
+```{r}
+m_names <- match(names(CSV_calib),tabNames$calibName)
+(m_movebank_names<-tabNames[m_names,"aniNames"])
+names(CSV_calib) <- m_movebank_names
+for(i in 1:length(CSV_calib)){
+  CSV_calib[[i]]$individual.local.identifier<-m_movebank_names[i]
+}
+```
+
+### Errors in coordinates
+
+
+The coordinates of many of the calibration files are wrong in their digits. For example, *Garza1*
+```{r}
+head(CSV_calib$Garza1[c("location.long","location.lat")])
+```
+
+It is the case for:
+
+```{r}
+(pbCoord<-sapply(CSV_calib,function(x)is.character(x$location.long)|is.character(x$location.lat)))
+```
+
+It may be corrected with the following code:
+
+```{r}
+for(i in 1:length(CSV_calib))
+{
+  if(pbCoord[i])
+  {
+    if(is.character(CSV_calib[[i]]$location.long)){
+      CSV_calib[[i]]$location.long<-as.numeric(gsub("^-75","-75.",gsub("\\.","",CSV_calib[[i]]$location.long)))
+    }
+    if(is.character(CSV_calib[[i]]$location.lat)){
+      CSV_calib[[i]]$location.lat<-as.numeric(gsub("^6","6.",gsub("\\.","",CSV_calib[[i]]$location.lat)))
+    }
+  }
+}
+```
+
+## Getting the calibration data in `ctmm` format
+
+Then, when the errors are fixed, we can transform it as a  `ctmm` object:
+
+```{r warning=FALSE, message=FALSE}
+calibData <- lapply(CSV_calib,as.telemetry)
+```
+# Analysing calibration data
+
+## Main informations
+We can calculate statistics on the calibration data:
+
+```{r}
+nbPoints <- sapply(calibData,function(x)nrow(x))
+calibDistPoints <- lapply(calibData,function(x)gDistance(SpatialPointsDataFrame.telemetry(x),byid=T))
+calibConvexHull <- lapply(calibData,function(x)gConvexHull(SpatialPointsDataFrame.telemetry(x)))
+data.frame(
+  nbPoints = nbPoints,
+  average = sapply(calibDistPoints,function(x)mean(as.dist(x))),
+  min = sapply(calibDistPoints,function(x)min(as.dist(x))),
+  max = sapply(calibDistPoints,function(x)max(as.dist(x))),
+  areaChull = sapply(calibConvexHull,gArea),
+  hdop_aver = sapply(calibData,function(x)mean(x$HDOP)),
+  hdop_min = sapply(calibData,function(x)min(x$HDOP)),
+  hdop_max = sapply(calibData,function(x)max(x$HDOP))
+)%>%
+  kable(col.names = c("Number of points","Average","Minimum","Maximum","Area","Average","Minimum","Maximum"))%>%
+  add_header_above(c(" "=2,"Distance between calibration points (m)"=3,"Convex hull (m2)"=1,"HDOP"=3))
+```
+
+
+## Maps of calibration data
+
+**Garza1**:
+
+```{r ll_calib_garza1,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Garza1"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Garza1,CRS("+proj=longlat +datum=WGS84")))%>%
+  addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**GarzaAve4**:
+
+```{r ll_calib_garzaave4,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["GarzaAve4"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$GarzaAve4,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**Guacharaca01**:
+
+```{r ll_calib_Guacharaca01,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Guacharaca01"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Guacharaca01,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**Guacharaca03**:
+
+```{r ll_calib_Guacharaca03,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Guacharaca03"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Guacharaca03,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**Phimosus02**:
+
+```{r ll_calib_Phimosus02,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Phimosus02"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Phimosus02,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**Phimosus04**:
+
+```{r ll_calib_Phimosus04,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Phimosus04"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Phimosus04,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**Pigua2**:
+
+
+```{r ll_calib_Pigua2,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Pigua2"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Pigua2,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+**Zarigueya1**:
+
+```{r ll_calib_Zarigueya1,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Zarigueya1"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Zarigueya1,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**Zarigueya2**:
+
+```{r ll_calib_Zarigueya2,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Zarigueya2"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Zarigueya2,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**Zarigueya3**:
+
+```{r ll_calib_Zarigueya3,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Zarigueya3"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Zarigueya3,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**Zarigueya4**:
+
+```{r ll_calib_Zarigueya4,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Zarigueya4"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Zarigueya4,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**Zorro02**:
+
+
+```{r ll_calib_Zorro02,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Zorro02"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Zorro02,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+**Zorro03**:
+
+```{r ll_calib_Zorro03,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Zorro03"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Zorro03,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**Zorro04**:
+
+```{r ll_calib_Zorro04,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Zorro04"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Zorro04,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**Zorro05**:
+
+```{r ll_calib_Zorro05,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Zorro05"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Zorro05,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+**Zorro06**:
+
+
+```{r ll_calib_Zorro06,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Zorro06"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Zorro06,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+**Zorro07**:
+
+
+```{r ll_calib_Zorro07,warning=F}
+
+  leaflet(spTransform(SpatialPointsDataFrame.telemetry(calibData[["Zorro07"]]),CRS("+proj=longlat +datum=WGS84"))) %>% addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons(data=spTransform(calibConvexHull$Zorro07,CRS("+proj=longlat +datum=WGS84")))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+```
+
+
+# Getting the movebank data, animal by animal
+
+```{r message=F, warning=F}
+rawList <- list()
+for(i in 1:nrow(tabNames))
+{
+  rawList[[tabNames$aniNames[i]]]<-list()
+  rawList[[i]]$moveData=getMovebankData(study = study_id, login = lgin,animalName = tabNames$aniNames[i])
+  rawList[[i]]$ctmmData=as.telemetry(rawList[[i]]$moveData)
+}
+```
+
+# Calculating UERE
+
+The User Equivalent Range Error (UERE) correspond to the homoskedastic (i.e. it does not vary as a function of time) part of a location error model.
+The Dilution Of Precision (DOP) correspond to the heteroskedastic (i.e. it does vary through time) part of the location error model, and it is usually given for each relocation of a movement dataset.
+
+$location~error(t)= DOP(t) × UERE(t)$
+
+Calculating UERE is done in `ctmm` using a calibration dataset.
+
+```{r}
+UERE_list <- lapply(calibData,uere.fit)
+```
+
+When you look at the `ctmm` telemetry object of Zorro02 before applying the UERE calibration, for instance:
+
+```{r}
+zorro02_ctmm<-rawList$Zorro02$ctmmData
+head(zorro02_ctmm)%>%kable()
+```
+
+Now, we apply the UERE:
+```{r}
+uere(zorro02_ctmm)<-UERE_list$Zorro02
+head(zorro02_ctmm)%>%kable()
+```
+
+As you can see there are now new columns in the table, among which *"VAR.xy"* represent the variation (or the error) on the horizontal dimensions.
+
+
+The square root of the *"VAR.xy"* variable is linearly dependent of the *HDOP*:
+
+```{r}
+plot(zorro02_ctmm$HDOP,sqrt(zorro02_ctmm$VAR.xy),main="Zorro02",xlab="HDOP",ylab="VAR.xy")
+```
+
+So this linear relationship may be described by a linear model such as:
+
+```{r}
+(LM_errorZorro02<-lm(sqrt(zorro02_ctmm$VAR.xy)~zorro02_ctmm$HDOP))
+```
+
+Now if we apply the same treatment to another animal:
+
+```{r}
+zarigueya2_ctmm<-rawList$Zarigueya2$ctmmData
+uere(zarigueya2_ctmm)<-UERE_list$Zarigueya2
+plot(zarigueya2_ctmm$HDOP,sqrt(zarigueya2_ctmm$VAR.xy),main="zarigueya2",xlab="HDOP",ylab="VAR.xy")
+(LM_errorzarigueya2<-lm(sqrt(zarigueya2_ctmm$VAR.xy)~zarigueya2_ctmm$HDOP))
+```
+
+
+I believe we should obtain a different factor, however both model give exactly the same slope, only the intercept is different.
+
+It might be that I do not get something in the calibration process, but to be sure I'll send an issue to ctmm-initiative/ctmm...
+
+
