@@ -82,7 +82,7 @@ llMaps <- lapply(filteredList, function(x) {
 llMaps$Ardilla1
 ```
 
-![](Fig/extraDB_unnamed-chunk-3-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-3-1.jpeg)<!-- -->
 
 ### 2.1.2 Ardilla2
 
@@ -90,7 +90,7 @@ llMaps$Ardilla1
 llMaps$Ardilla2
 ```
 
-![](Fig/extraDB_unnamed-chunk-4-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-4-1.jpeg)<!-- -->
 
 ### 2.1.3 Asio2
 
@@ -98,7 +98,7 @@ llMaps$Ardilla2
 llMaps$Asio2
 ```
 
-![](Fig/extraDB_unnamed-chunk-5-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-5-1.jpeg)<!-- -->
 
 ### 2.1.4 BuhoPigua6
 
@@ -106,7 +106,7 @@ llMaps$Asio2
 llMaps$BuhoPigua6
 ```
 
-![](Fig/extraDB_unnamed-chunk-6-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-6-1.jpeg)<!-- -->
 
 ### 2.1.5 Garza1
 
@@ -114,7 +114,7 @@ llMaps$BuhoPigua6
 llMaps$Garza1
 ```
 
-![](Fig/extraDB_unnamed-chunk-7-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-7-1.jpeg)<!-- -->
 
 ### 2.1.6 GarzaAve2
 
@@ -122,7 +122,7 @@ llMaps$Garza1
 llMaps$GarzaAve2
 ```
 
-![](Fig/extraDB_unnamed-chunk-8-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-8-1.jpeg)<!-- -->
 
 ### 2.1.7 GarzaAve3
 
@@ -130,7 +130,7 @@ llMaps$GarzaAve2
 llMaps$GarzaAve3
 ```
 
-![](Fig/extraDB_unnamed-chunk-9-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-9-1.jpeg)<!-- -->
 
 ### 2.1.8 GarzaAve4
 
@@ -138,7 +138,7 @@ llMaps$GarzaAve3
 llMaps$GarzaAve4
 ```
 
-![](Fig/extraDB_unnamed-chunk-10-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-10-1.jpeg)<!-- -->
 
 ### 2.1.9 GarzaTiti3
 
@@ -146,7 +146,7 @@ llMaps$GarzaAve4
 llMaps$GarzaTiti3
 ```
 
-![](Fig/extraDB_unnamed-chunk-11-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-11-1.jpeg)<!-- -->
 
 ### 2.1.10 Guacharaca01
 
@@ -154,7 +154,7 @@ llMaps$GarzaTiti3
 llMaps$Guacharaca01
 ```
 
-![](Fig/extraDB_unnamed-chunk-12-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-12-1.jpeg)<!-- -->
 
 ### 2.1.11 Guacharaca02
 
@@ -162,7 +162,7 @@ llMaps$Guacharaca01
 llMaps$Guacharaca02
 ```
 
-![](Fig/extraDB_unnamed-chunk-13-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-13-1.jpeg)<!-- -->
 
 ### 2.1.12 Guacharaca03
 
@@ -170,7 +170,7 @@ llMaps$Guacharaca02
 llMaps$Guacharaca03
 ```
 
-![](Fig/extraDB_unnamed-chunk-14-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-14-1.jpeg)<!-- -->
 
 ### 2.1.13 Guacharaca04
 
@@ -178,7 +178,7 @@ llMaps$Guacharaca03
 llMaps$Guacharaca04
 ```
 
-![](Fig/extraDB_unnamed-chunk-15-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-15-1.jpeg)<!-- -->
 
 ### 2.1.14 Guacharaca06
 
@@ -186,7 +186,7 @@ llMaps$Guacharaca04
 llMaps$Guacharaca06
 ```
 
-![](Fig/extraDB_unnamed-chunk-16-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-16-1.jpeg)<!-- -->
 
 ### 2.1.15 GuacharacaAsio-4
 
@@ -194,7 +194,7 @@ llMaps$Guacharaca06
 llMaps$`GuacharacaAsio-4`
 ```
 
-![](Fig/extraDB_unnamed-chunk-17-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-17-1.jpeg)<!-- -->
 
 ### 2.1.16 PavaGarza-4
 
@@ -202,7 +202,7 @@ llMaps$`GuacharacaAsio-4`
 llMaps$`PavaGarza-4`
 ```
 
-![](Fig/extraDB_unnamed-chunk-18-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-18-1.jpeg)<!-- -->
 
 ### 2.1.17 PavaGuacharaca5
 
@@ -210,7 +210,7 @@ llMaps$`PavaGarza-4`
 llMaps$PavaGuacharaca5
 ```
 
-![](Fig/extraDB_unnamed-chunk-19-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-19-1.jpeg)<!-- -->
 
 ### 2.1.18 PerezosoZorro1
 
@@ -218,7 +218,7 @@ llMaps$PavaGuacharaca5
 llMaps$PerezosoZorro1
 ```
 
-![](Fig/extraDB_unnamed-chunk-20-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-20-1.jpeg)<!-- -->
 
 ### 2.1.19 Phimosus01
 
@@ -226,7 +226,7 @@ llMaps$PerezosoZorro1
 llMaps$Phimosus01
 ```
 
-![](Fig/extraDB_unnamed-chunk-21-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-21-1.jpeg)<!-- -->
 
 ### 2.1.20 Phimosus02
 
@@ -234,7 +234,7 @@ llMaps$Phimosus01
 llMaps$Phimosus02
 ```
 
-![](Fig/extraDB_unnamed-chunk-22-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-22-1.jpeg)<!-- -->
 
 ### 2.1.21 Phimosus03
 
@@ -242,7 +242,7 @@ llMaps$Phimosus02
 llMaps$Phimosus03
 ```
 
-![](Fig/extraDB_unnamed-chunk-23-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-23-1.jpeg)<!-- -->
 
 ### 2.1.22 Phimosus04
 
@@ -250,7 +250,7 @@ llMaps$Phimosus03
 llMaps$Phimosus04
 ```
 
-![](Fig/extraDB_unnamed-chunk-24-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-24-1.jpeg)<!-- -->
 
 ### 2.1.23 Phimosus05
 
@@ -258,7 +258,7 @@ llMaps$Phimosus04
 llMaps$Phimosus05
 ```
 
-![](Fig/extraDB_unnamed-chunk-25-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-25-1.jpeg)<!-- -->
 
 ### 2.1.24 Phimosus06
 
@@ -266,7 +266,7 @@ llMaps$Phimosus05
 llMaps$Phimosus06
 ```
 
-![](Fig/extraDB_unnamed-chunk-26-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-26-1.jpeg)<!-- -->
 
 ### 2.1.25 Phimosus07
 
@@ -274,7 +274,7 @@ llMaps$Phimosus06
 llMaps$Phimosus07
 ```
 
-![](Fig/extraDB_unnamed-chunk-27-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-27-1.jpeg)<!-- -->
 
 ### 2.1.26 Pigua1
 
@@ -282,7 +282,7 @@ llMaps$Phimosus07
 llMaps$Pigua1
 ```
 
-![](Fig/extraDB_unnamed-chunk-28-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-28-1.jpeg)<!-- -->
 
 ### 2.1.27 Pigua2
 
@@ -290,7 +290,7 @@ llMaps$Pigua1
 llMaps$Pigua2
 ```
 
-![](Fig/extraDB_unnamed-chunk-29-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-29-1.jpeg)<!-- -->
 
 ### 2.1.28 Pigua5
 
@@ -298,7 +298,7 @@ llMaps$Pigua2
 llMaps$Pigua5
 ```
 
-![](Fig/extraDB_unnamed-chunk-30-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-30-1.jpeg)<!-- -->
 
 ### 2.1.29 Titi4
 
@@ -306,7 +306,7 @@ llMaps$Pigua5
 llMaps$Titi4
 ```
 
-![](Fig/extraDB_unnamed-chunk-31-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-31-1.jpeg)<!-- -->
 
 ### 2.1.30 Zarigueya1
 
@@ -314,7 +314,7 @@ llMaps$Titi4
 llMaps$Zarigueya1
 ```
 
-![](Fig/extraDB_unnamed-chunk-32-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-32-1.jpeg)<!-- -->
 
 ### 2.1.31 Zarigueya3
 
@@ -322,7 +322,7 @@ llMaps$Zarigueya1
 llMaps$Zarigueya3
 ```
 
-![](Fig/extraDB_unnamed-chunk-33-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-33-1.jpeg)<!-- -->
 
 ### 2.1.32 Zarigueya4
 
@@ -330,7 +330,7 @@ llMaps$Zarigueya3
 llMaps$Zarigueya4
 ```
 
-![](Fig/extraDB_unnamed-chunk-34-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-34-1.jpeg)<!-- -->
 
 ### 2.1.33 Zarigueya5
 
@@ -338,7 +338,7 @@ llMaps$Zarigueya4
 llMaps$Zarigueya5
 ```
 
-![](Fig/extraDB_unnamed-chunk-35-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-35-1.jpeg)<!-- -->
 
 ### 2.1.34 Zarigueya6
 
@@ -346,7 +346,7 @@ llMaps$Zarigueya5
 llMaps$Zarigueya6
 ```
 
-![](Fig/extraDB_unnamed-chunk-36-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-36-1.jpeg)<!-- -->
 
 ### 2.1.35 Zarigueya7
 
@@ -354,7 +354,7 @@ llMaps$Zarigueya6
 llMaps$Zarigueya7
 ```
 
-![](Fig/extraDB_unnamed-chunk-37-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-37-1.jpeg)<!-- -->
 
 ### 2.1.36 Zorro02
 
@@ -362,7 +362,7 @@ llMaps$Zarigueya7
 llMaps$Zorro02
 ```
 
-![](Fig/extraDB_unnamed-chunk-38-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-38-1.jpeg)<!-- -->
 
 ### 2.1.37 Zorro03
 
@@ -370,7 +370,7 @@ llMaps$Zorro02
 llMaps$Zorro03
 ```
 
-![](Fig/extraDB_unnamed-chunk-39-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-39-1.jpeg)<!-- -->
 
 ### 2.1.38 Zorro04
 
@@ -378,7 +378,7 @@ llMaps$Zorro03
 llMaps$Zorro04
 ```
 
-![](Fig/extraDB_unnamed-chunk-40-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-40-1.jpeg)<!-- -->
 
 ### 2.1.39 Zorro05
 
@@ -386,7 +386,7 @@ llMaps$Zorro04
 llMaps$Zorro05
 ```
 
-![](Fig/extraDB_unnamed-chunk-41-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-41-1.jpeg)<!-- -->
 
 ### 2.1.40 Zorro06
 
@@ -394,7 +394,7 @@ llMaps$Zorro05
 llMaps$Zorro06
 ```
 
-![](Fig/extraDB_unnamed-chunk-42-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-42-1.jpeg)<!-- -->
 
 ### 2.1.41 Zorro07
 
@@ -402,7 +402,7 @@ llMaps$Zorro06
 llMaps$Zorro07
 ```
 
-![](Fig/extraDB_unnamed-chunk-43-1.jpeg)<!-- -->
+![](Fig/visu_unnamed-chunk-43-1.jpeg)<!-- -->
 
 ### 2.1.42 Conclusion `leaflet`
 
