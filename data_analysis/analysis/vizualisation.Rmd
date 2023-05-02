@@ -4,6 +4,7 @@ author: "Marius Bottin"
 date: "`r Sys.Date()`"
 output: 
     github_document:
+      number_sections: true
       toc: true
       toc_depth: 4
       dev: 'jpeg'
@@ -26,6 +27,10 @@ require(DBI)
 require(ctmm)
 &
 require(rgeos)
+&
+require(leaflet)
+&
+require(move)
 )
 
 knitr::opts_chunk$set(cache=T,tidy.opts = list(width.cutoff = 70), tidy = TRUE, fig.path="Fig/extraDB_",echo=T)
@@ -42,4 +47,281 @@ extraSp<-dbConnect(drv = PostgreSQL(), dbname="move_extra_sp")
 knitr::opts_chunk$set(connection=extraSp)
 ```
 
-... currently processing ...
+# Loading filtered data
+
+We first load the filtered object containing the data in the `ctmm` and `move` formats, which was created in [outliers.Rmd](../../data_management/local/outliers.md)
+
+```{r}
+load("../../data_management/local/filteredList.RData")
+```
+
+
+# Basic maps of relocations
+## With leaflet
+
+The map of points and lines with `leaflet` is created that way:
+```{r}
+llMaps<-lapply(filteredList,function(x)
+{
+  A<-move2ade(x$moveData)
+  res<- leaflet(A) %>%
+    addProviderTiles("Esri.WorldImagery") %>%
+    addPolylines(data=as(A,"SpatialLines"))%>%
+    addCircleMarkers(radius = 1, color = "red",fill = "red")
+  return(res)
+})
+
+```
+### Ardilla1
+
+```{r}
+llMaps$Ardilla1
+```
+
+
+### Ardilla2
+
+```{r}
+llMaps$Ardilla2
+```
+
+### Asio2
+
+```{r}
+llMaps$Asio2
+```
+### BuhoPigua6
+
+```{r}
+llMaps$BuhoPigua6
+```
+
+### Garza1
+
+```{r}
+llMaps$Garza1
+```
+
+### GarzaAve2
+
+```{r}
+llMaps$GarzaAve2
+```
+
+### GarzaAve3
+
+```{r}
+llMaps$GarzaAve3
+```
+
+### GarzaAve4
+
+```{r}
+llMaps$GarzaAve4
+```
+
+### GarzaTiti3
+
+```{r}
+llMaps$GarzaTiti3
+```
+
+### Guacharaca01
+
+```{r}
+llMaps$Guacharaca01
+```
+
+### Guacharaca02
+
+```{r}
+llMaps$Guacharaca02
+```
+
+### Guacharaca03
+
+```{r}
+llMaps$Guacharaca03
+```
+
+### Guacharaca04
+
+```{r}
+llMaps$Guacharaca04
+```
+
+### Guacharaca06
+
+```{r}
+llMaps$Guacharaca06
+```
+
+### GuacharacaAsio-4
+
+```{r}
+llMaps$`GuacharacaAsio-4`
+```
+
+### PavaGarza-4
+
+```{r}
+llMaps$`PavaGarza-4`
+```
+
+### PavaGuacharaca5
+
+```{r}
+llMaps$PavaGuacharaca5
+```
+
+### PerezosoZorro1
+
+```{r}
+llMaps$PerezosoZorro1
+```
+
+### Phimosus01
+
+```{r}
+llMaps$Phimosus01
+```
+
+### Phimosus02
+```{r}
+llMaps$Phimosus02
+```
+
+
+### Phimosus03
+
+```{r}
+llMaps$Phimosus03
+```
+
+### Phimosus04
+
+```{r}
+llMaps$Phimosus04
+```
+
+### Phimosus05
+
+```{r}
+llMaps$Phimosus05
+```
+
+### Phimosus06
+
+```{r}
+llMaps$Phimosus06
+```
+
+### Phimosus07
+
+```{r}
+llMaps$Phimosus07
+```
+
+### Pigua1
+
+```{r}
+llMaps$Pigua1
+```
+
+### Pigua2
+
+```{r}
+llMaps$Pigua2
+```
+
+### Pigua5
+
+```{r}
+llMaps$Pigua5
+```
+
+### Titi4
+
+```{r}
+llMaps$Titi4
+```
+
+
+### Zarigueya1
+
+```{r}
+llMaps$Zarigueya1
+```
+
+### Zarigueya3
+
+```{r}
+llMaps$Zarigueya3
+```
+
+### Zarigueya4
+
+```{r}
+llMaps$Zarigueya4
+```
+
+### Zarigueya5
+
+```{r}
+llMaps$Zarigueya5
+```
+
+### Zarigueya6
+
+```{r}
+llMaps$Zarigueya6
+```
+
+### Zarigueya7
+
+```{r}
+llMaps$Zarigueya7
+```
+
+### Zorro02
+
+```{r}
+llMaps$Zorro02
+```
+
+### Zorro03
+
+```{r}
+llMaps$Zorro03
+```
+
+### Zorro04
+
+```{r}
+llMaps$Zorro04
+```
+
+### Zorro05
+
+```{r}
+llMaps$Zorro05
+```
+
+### Zorro06
+
+```{r}
+llMaps$Zorro06
+```
+
+### Zorro07
+
+```{r}
+llMaps$Zorro07
+```
+
+### Conclusion `leaflet`
+`leaflet` gives us the possibility to observe the relocations and trajectory on a satellite basemap.
+Moreover, when applied on a local machine, it is possible to zoom into the map to see details.
+However, when a lot of points and lines are overlapping, it is quite difficult to distinguish the movement and to extrapolate some patterns out of the maps
+
+
