@@ -1,0 +1,1690 @@
+---
+title: "Managing temporal factors, frequencies of relocations and time lags"
+author: "Marius Bottin"
+date: "`r Sys.Date()`"
+output: 
+    github_document:
+      toc: true
+      toc_depth: 2
+      dev: 'jpeg'
+always_allow_html: true
+---
+
+
+```{r setup, echo=F,message=F,warning=FALSE,results='hide'}
+stopifnot(
+require(RPostgreSQL)
+&
+require(rpostgis)
+&
+require(sp)
+&
+require(geodata)
+&
+require(DBI)
+&
+require(ctmm)
+&
+require(move)
+&
+require(rgeos)
+&
+require(lubridate)
+&
+require(leaflet)
+&
+require(kableExtra)
+)
+
+knitr::opts_chunk$set(cache=T,tidy.opts = list(width.cutoff = 70), tidy = TRUE, fig.path="Fig/temporal",echo=T)
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  paste0("\n \\", "footnotesize","\n\n", x, "\n\n \\normalsize\n\n")
+})
+options(knitr.kable.NA = "---")
+dirData <- "../../../uwt_repo_data/extra_spatial/"
+set.seed(9835)
+extraSp<-dbConnect(drv = PostgreSQL(), dbname="move_extra_sp")
+# For avoiding setting the connection name in the SQL chunks:
+knitr::opts_chunk$set(connection=extraSp)
+```
+
+
+# Loading filtered data, by individual
+
+Before doing that, make sure that you ran the code contained in file [SpatialErrorCalibration.Rmd](SpatialErrorCalibration.md).
+Various processes needed to be done, in particular the relationship between names of the animals in the movebank data and the calibration local datasets.
+
+
+We will load the filtered data list created in [outliers.Rmd](./outliers.md)
+
+```{r message=F, warning=F}
+load("./filteredList.RData")
+```
+
+
+# Timestamps as a link between relocation data from `move` and `ctmm`
+
+As you may see in the following code, timestamps can be an efficient way to see the correspondences between relocation data in the `move` and `ctmm` format:
+
+```{r}
+match(filteredList$Zorro02$moveData$timestamp,filteredList$Zorro02$ctmmData$timestamp)
+```
+# Checking frequencies and timelags
+
+## Extracting dates and time of relocations
+
+We first extract information for dates and times for every individual:
+
+```{r}
+list_dateTime<-lapply(filteredList,function(x)
+  data.frame(timestamp=timestamps(x$moveData),
+            date=date(timestamps(x$moveData)),
+             time=format(timestamps(x$moveData), "%H:%M:%S"),
+            time_s=as.numeric(timestamps(x$moveData)) - as.numeric(as.POSIXct(paste0(date(timestamps(x$moveData)), " 00:00:00"))),
+            timeLag_s=c(NA, timeLag(x$moveData,"secs"))
+  ))
+```
+
+Concretely, for each individual, we obtain this table (example: Zorro02, 20 first lines):
+
+```{r}
+list_dateTime$Zorro02 %>% head(n=20) %>% kable()
+```
+
+
+
+## Individual by individual
+### Functions
+
+First we define a function which makes easily histograms out of the timestamp information tables, by date and by time of day
+```{r}
+hists_timestamps<-function(ts_tab, indName=NULL)
+{
+  par(mar=c(7,4,3,1))
+  hist(ts_tab$timestamp,breaks="days", freq=T, main=ifelse(!is.null(indName), paste(indName,": Dates",sep=""), "Dates"), xlab = "Date",las=2)
+  hist(ts_tab$time_s,xaxt="n",nclass=100, main = ifelse(!is.null(indName),paste(indName,": Time of day",sep=""), "Dates"), xlab = "Time of day")
+  axis(1,at=seq(0,23*60*60,60*60),paste(0:23,":00",sep=""),las=2)
+}
+  
+```
+
+Then we define a function to separate the times of day.
+It probably could be done better, but I'll use a "single" clustering method calculated on the time in second.
+For now, the user will have to define the number of relocation by day
+
+```{r}
+find_clustTOD <- function(ts_tab,nb_reloc=12)
+{
+  gp <- cutree(hclust(dist(ts_tab$time_s),method="single"),nb_reloc)
+  meanTimeGp <- tapply(ts_tab$time_s,gp,mean)
+  meanGp<-format(as.POSIXct(meanTimeGp,origin=today(tzone = "GMT"),tz="GMT"),"%H:%M")[order(meanTimeGp)]
+  return(data.frame(gp_TOD=match(as.character(gp),names(meanGp)),
+             meanGp=meanGp[as.character(gp)]
+             ))
+}
+```
+
+
+The idea of the find_clustTOD function is to classify the time of day which correspond to each relocation data in a normalized form.
+Look at the following table and plot, to understand what it does:
+
+```{r}
+A <- cbind(list_dateTime$Zorro02,find_clustTOD(list_dateTime$Zorro02))
+kable(head(A,25))
+plot(A$date,A$gp_TOD,type="b",xlab="Date",ylab="Time of day group")
+```
+
+Then it is easy to create a function which calculate which TOD groups are missing and which are duplicated every day between start and end.
+
+```{r}
+mis_dup_TOD<-function(ts_tab_TOD){
+  nbClusTOD<-max(ts_tab_TOD$gp_TOD)
+  dupliTOD<-duplicated(ts_tab_TOD[c("date","gp_TOD")])
+  minDate<-min(ts_tab_TOD$date)
+  maxDate<-max(ts_tab_TOD$date)
+  minDateTOD<-min(ts_tab_TOD$gp_TOD[ts_tab_TOD$date==minDate])
+  maxDateTOD<-max(ts_tab_TOD$gp_TOD[ts_tab_TOD$date==maxDate])
+  completeDateTOD<-rbind(data.frame(date=as.Date(minDate),gp_TOD=minDateTOD:nbClusTOD),
+                        data.frame(date=as.Date(rep((minDate+1) : (maxDate-1), each=nbClusTOD), origin="1970-01-01"), gp_TOD=rep(1:nbClusTOD,length(rep((minDate+1) : (maxDate-1))))),
+                        data.frame(date=maxDate,gp_TOD=1:maxDateTOD),deparse.level = 0)
+  completeDateTOD$nb<-integer(nrow(completeDateTOD))
+  for(i in 1:nrow(completeDateTOD))
+    {completeDateTOD$nb[i]<-length(which(ts_tab_TOD$date==completeDateTOD$date[i] & ts_tab_TOD$gp_TOD==completeDateTOD$gp_TOD[i]))}
+  return(completeDateTOD)
+}
+```
+
+
+### Zorro02
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Zorro02, "Zorro02")
+```
+
+There seem to be 12 different time of days in the data:
+
+```{r}
+list_dateTime$Zorro02<-cbind(list_dateTime$Zorro02, find_clustTOD(list_dateTime$Zorro02,12))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Zorro02[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD<-list()
+misRepTOD$Zorro02<-mis_dup_TOD(list_dateTime$Zorro02)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Zorro02$gp_TOD[misRepTOD$Zorro02$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Zorro02$nb[misRepTOD$Zorro02$nb>1],factor(misRepTOD$Zorro02$gp_TOD)[misRepTOD$Zorro02$nb>1])
+```
+
+
+
+### Zorro03
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Zorro03, "Zorro03")
+```
+
+There seem to be 12 different time of days in the data:
+
+```{r}
+list_dateTime$Zorro03<-cbind(list_dateTime$Zorro03, find_clustTOD(list_dateTime$Zorro03,12))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Zorro03[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Zorro03<-mis_dup_TOD(list_dateTime$Zorro03)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Zorro03$gp_TOD[misRepTOD$Zorro03$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Zorro03$nb[misRepTOD$Zorro03$nb>1],factor(misRepTOD$Zorro03$gp_TOD)[misRepTOD$Zorro03$nb>1])
+```
+
+### Zorro04
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Zorro04, "Zorro04")
+```
+
+There seem to be 12 different time of days in the data:
+
+```{r}
+list_dateTime$Zorro04<-cbind(list_dateTime$Zorro04, find_clustTOD(list_dateTime$Zorro04,12))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Zorro04[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Zorro04<-mis_dup_TOD(list_dateTime$Zorro04)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Zorro04$gp_TOD[misRepTOD$Zorro04$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Zorro04$nb[misRepTOD$Zorro04$nb>1],factor(misRepTOD$Zorro04$gp_TOD)[misRepTOD$Zorro04$nb>1])
+```
+
+### Zorro05
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Zorro05, "Zorro05")
+```
+
+There seem to be 12 different time of days in the data:
+
+```{r}
+list_dateTime$Zorro05<-cbind(list_dateTime$Zorro05, find_clustTOD(list_dateTime$Zorro05,12))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Zorro05[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Zorro05<-mis_dup_TOD(list_dateTime$Zorro05)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Zorro05$gp_TOD[misRepTOD$Zorro05$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Zorro05$nb[misRepTOD$Zorro05$nb>1],factor(misRepTOD$Zorro05$gp_TOD)[misRepTOD$Zorro05$nb>1])
+```
+
+### Zorro06
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Zorro06, "Zorro06")
+```
+
+There seem to be 12 different time of days in the data:
+
+```{r}
+list_dateTime$Zorro06<-cbind(list_dateTime$Zorro06, find_clustTOD(list_dateTime$Zorro06,12))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Zorro06[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Zorro06<-mis_dup_TOD(list_dateTime$Zorro06)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Zorro06$gp_TOD[misRepTOD$Zorro06$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Zorro06$nb[misRepTOD$Zorro06$nb>1],factor(misRepTOD$Zorro06$gp_TOD)[misRepTOD$Zorro06$nb>1])
+```
+
+### Zorro07
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Zorro07, "Zorro07")
+```
+
+There seem to be 12 different time of days in the data:
+
+```{r}
+list_dateTime$Zorro07<-cbind(list_dateTime$Zorro07, find_clustTOD(list_dateTime$Zorro07,12))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Zorro07[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Zorro07<-mis_dup_TOD(list_dateTime$Zorro07)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Zorro07$gp_TOD[misRepTOD$Zorro07$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Zorro07$nb[misRepTOD$Zorro07$nb>1],factor(misRepTOD$Zorro07$gp_TOD)[misRepTOD$Zorro07$nb>1])
+```
+
+### Guacharaca01
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Guacharaca01, "Guacharaca01")
+```
+
+There seem to be 25 different time of days in the data:
+
+```{r}
+list_dateTime$Guacharaca01<-cbind(list_dateTime$Guacharaca01, find_clustTOD(list_dateTime$Guacharaca01,25))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Guacharaca01[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Guacharaca01<-mis_dup_TOD(list_dateTime$Guacharaca01)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Guacharaca01$gp_TOD[misRepTOD$Guacharaca01$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Guacharaca01$nb[misRepTOD$Guacharaca01$nb>1],factor(misRepTOD$Guacharaca01$gp_TOD)[misRepTOD$Guacharaca01$nb>1])
+```
+
+### Guacharaca03
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Guacharaca03, "Guacharaca03")
+```
+
+There seem to be 25 different time of days in the data:
+
+```{r}
+list_dateTime$Guacharaca03<-cbind(list_dateTime$Guacharaca03, find_clustTOD(list_dateTime$Guacharaca03,25))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Guacharaca03[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Guacharaca03<-mis_dup_TOD(list_dateTime$Guacharaca03)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Guacharaca03$gp_TOD[misRepTOD$Guacharaca03$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Guacharaca03$nb[misRepTOD$Guacharaca03$nb>1],factor(misRepTOD$Guacharaca03$gp_TOD)[misRepTOD$Guacharaca03$nb>1])
+```
+
+### Phimosus01
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Phimosus01, "Phimosus01")
+```
+
+There seem to be 48 different time of days in the data:
+
+```{r}
+list_dateTime$Phimosus01<-cbind(list_dateTime$Phimosus01, find_clustTOD(list_dateTime$Phimosus01,48))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Phimosus01[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Phimosus01<-mis_dup_TOD(list_dateTime$Phimosus01)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Phimosus01$gp_TOD[misRepTOD$Phimosus01$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Phimosus01$nb[misRepTOD$Phimosus01$nb>1],factor(misRepTOD$Phimosus01$gp_TOD)[misRepTOD$Phimosus01$nb>1])
+```
+
+### Phimosus02
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Phimosus02, "Phimosus02")
+```
+
+There seem to be 12 different time of days in the data:
+
+```{r}
+list_dateTime$Phimosus02<-cbind(list_dateTime$Phimosus02, find_clustTOD(list_dateTime$Phimosus02,48))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Phimosus02[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Phimosus02<-mis_dup_TOD(list_dateTime$Phimosus02)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Phimosus02$gp_TOD[misRepTOD$Phimosus02$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Phimosus02$nb[misRepTOD$Phimosus02$nb>1],factor(misRepTOD$Phimosus02$gp_TOD)[misRepTOD$Phimosus02$nb>1])
+```
+
+### Pigua1
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Pigua1, "Pigua1")
+```
+
+There seem to be 25 different time of days in the data:
+
+```{r}
+list_dateTime$Pigua1<-cbind(list_dateTime$Pigua1, find_clustTOD(list_dateTime$Pigua1,25))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Pigua1[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Pigua1<-mis_dup_TOD(list_dateTime$Pigua1)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Pigua1$gp_TOD[misRepTOD$Pigua1$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Pigua1$nb[misRepTOD$Pigua1$nb>1],factor(misRepTOD$Pigua1$gp_TOD)[misRepTOD$Pigua1$nb>1])
+```
+
+### Zarigueya1
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Zarigueya1, "Zarigueya1")
+```
+
+There seem to be 3 different time of days in the data:
+
+```{r}
+list_dateTime$Zarigueya1<-cbind(list_dateTime$Zarigueya1, find_clustTOD(list_dateTime$Zarigueya1,3))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Zarigueya1[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Zarigueya1<-mis_dup_TOD(list_dateTime$Zarigueya1)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Zarigueya1$gp_TOD[misRepTOD$Zarigueya1$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Zarigueya1$nb[misRepTOD$Zarigueya1$nb>1],factor(misRepTOD$Zarigueya1$gp_TOD)[misRepTOD$Zarigueya1$nb>1])
+```
+
+### Zarigueya3
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Zarigueya3, "Zarigueya3")
+```
+
+There seem to be 5 different time of days in the data:
+
+```{r}
+list_dateTime$Zarigueya3<-cbind(list_dateTime$Zarigueya3, find_clustTOD(list_dateTime$Zarigueya3,5))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Zarigueya3[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Zarigueya3<-mis_dup_TOD(list_dateTime$Zarigueya3)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Zarigueya3$gp_TOD[misRepTOD$Zarigueya3$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Zarigueya3$nb[misRepTOD$Zarigueya3$nb>1],factor(misRepTOD$Zarigueya3$gp_TOD)[misRepTOD$Zarigueya3$nb>1])
+```
+
+### Zarigueya4
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Zarigueya4, "Zarigueya4")
+```
+
+There seem to be 5 different time of days in the data:
+
+```{r}
+list_dateTime$Zarigueya4<-cbind(list_dateTime$Zarigueya4, find_clustTOD(list_dateTime$Zarigueya4,5))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Zarigueya4[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Zarigueya4<-mis_dup_TOD(list_dateTime$Zarigueya4)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Zarigueya4$gp_TOD[misRepTOD$Zarigueya4$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Zarigueya4$nb[misRepTOD$Zarigueya4$nb>1],factor(misRepTOD$Zarigueya4$gp_TOD)[misRepTOD$Zarigueya4$nb>1])
+```
+
+### Phimosus04
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Phimosus04, "Phimosus04")
+```
+
+There seem to be 48 different time of days in the data:
+
+```{r}
+list_dateTime$Phimosus04<-cbind(list_dateTime$Phimosus04, find_clustTOD(list_dateTime$Phimosus04,48))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Phimosus04[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Phimosus04<-mis_dup_TOD(list_dateTime$Phimosus04)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Phimosus04$gp_TOD[misRepTOD$Phimosus04$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Phimosus04$nb[misRepTOD$Phimosus04$nb>1],factor(misRepTOD$Phimosus04$gp_TOD)[misRepTOD$Phimosus04$nb>1])
+```
+
+### Pigua2
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Pigua2, "Pigua2")
+```
+
+There seem to be 25 different time of days in the data:
+
+```{r}
+list_dateTime$Pigua2<-cbind(list_dateTime$Pigua2, find_clustTOD(list_dateTime$Pigua2,25))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Pigua2[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Pigua2<-mis_dup_TOD(list_dateTime$Pigua2)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Pigua2$gp_TOD[misRepTOD$Pigua2$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Pigua2$nb[misRepTOD$Pigua2$nb>1],factor(misRepTOD$Pigua2$gp_TOD)[misRepTOD$Pigua2$nb>1])
+```
+
+### Garza1
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Garza1, "Garza1")
+```
+
+There seem to be 72 different time of days in the data:
+
+```{r}
+list_dateTime$Garza1<-cbind(list_dateTime$Garza1, find_clustTOD(list_dateTime$Garza1,72))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Garza1[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Garza1<-mis_dup_TOD(list_dateTime$Garza1)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Garza1$gp_TOD[misRepTOD$Garza1$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Garza1$nb[misRepTOD$Garza1$nb>1],factor(misRepTOD$Garza1$gp_TOD)[misRepTOD$Garza1$nb>1])
+```
+
+### GarzaAve4
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$GarzaAve4, "GarzaAve4")
+```
+
+There seem to be 25 different time of days in the data:
+
+```{r}
+list_dateTime$GarzaAve4<-cbind(list_dateTime$GarzaAve4, find_clustTOD(list_dateTime$GarzaAve4,25))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$GarzaAve4[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$GarzaAve4<-mis_dup_TOD(list_dateTime$GarzaAve4)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$GarzaAve4$gp_TOD[misRepTOD$GarzaAve4$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$GarzaAve4$nb[misRepTOD$GarzaAve4$nb>1],factor(misRepTOD$GarzaAve4$gp_TOD)[misRepTOD$GarzaAve4$nb>1])
+```
+
+### Zarigueya5
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Zarigueya5, "Zarigueya5")
+```
+
+There seem to be 6 different time of days in the data:
+
+```{r}
+list_dateTime$Zarigueya5<-cbind(list_dateTime$Zarigueya5, find_clustTOD(list_dateTime$Zarigueya5,6))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Zarigueya5[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Zarigueya5<-mis_dup_TOD(list_dateTime$Zarigueya5)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Zarigueya5$gp_TOD[misRepTOD$Zarigueya5$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Zarigueya5$nb[misRepTOD$Zarigueya5$nb>1],factor(misRepTOD$Zarigueya5$gp_TOD)[misRepTOD$Zarigueya5$nb>1])
+```
+
+### Pigua5
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Pigua5, "Pigua5")
+```
+
+There seem to be 27 different time of days in the data:
+
+```{r}
+list_dateTime$Pigua5<-cbind(list_dateTime$Pigua5, find_clustTOD(list_dateTime$Pigua5,27))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Pigua5[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Pigua5<-mis_dup_TOD(list_dateTime$Pigua5)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Pigua5$gp_TOD[misRepTOD$Pigua5$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Pigua5$nb[misRepTOD$Pigua5$nb>1],factor(misRepTOD$Pigua5$gp_TOD)[misRepTOD$Pigua5$nb>1])
+```
+
+### Guacharaca06
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Guacharaca06, "Guacharaca06")
+```
+
+There seem to be 27 different time of days in the data:
+
+```{r}
+list_dateTime$Guacharaca06<-cbind(list_dateTime$Guacharaca06, find_clustTOD(list_dateTime$Guacharaca06,27))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Guacharaca06[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Guacharaca06<-mis_dup_TOD(list_dateTime$Guacharaca06)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Guacharaca06$gp_TOD[misRepTOD$Guacharaca06$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Guacharaca06$nb[misRepTOD$Guacharaca06$nb>1],factor(misRepTOD$Guacharaca06$gp_TOD)[misRepTOD$Guacharaca06$nb>1])
+```
+
+### Ardilla1
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Ardilla1, "Ardilla1")
+```
+
+There seem to be 9 different time of days in the data:
+
+```{r}
+list_dateTime$Ardilla1<-cbind(list_dateTime$Ardilla1, find_clustTOD(list_dateTime$Ardilla1,9))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Ardilla1[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Ardilla1<-mis_dup_TOD(list_dateTime$Ardilla1)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Ardilla1$gp_TOD[misRepTOD$Ardilla1$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Ardilla1$nb[misRepTOD$Ardilla1$nb>1],factor(misRepTOD$Ardilla1$gp_TOD)[misRepTOD$Ardilla1$nb>1])
+```
+
+### GarzaAve2
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$GarzaAve2, "GarzaAve2")
+```
+
+There seem to be 48 different time of days in the data:
+
+```{r}
+list_dateTime$GarzaAve2<-cbind(list_dateTime$GarzaAve2, find_clustTOD(list_dateTime$GarzaAve2,48))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$GarzaAve2[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$GarzaAve2<-mis_dup_TOD(list_dateTime$GarzaAve2)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$GarzaAve2$gp_TOD[misRepTOD$GarzaAve2$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$GarzaAve2$nb[misRepTOD$GarzaAve2$nb>1],factor(misRepTOD$GarzaAve2$gp_TOD)[misRepTOD$GarzaAve2$nb>1])
+```
+
+### GarzaAve3
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$GarzaAve3, "GarzaAve3")
+```
+
+There seem to be 48 different time of days in the data:
+
+```{r}
+list_dateTime$GarzaAve3<-cbind(list_dateTime$GarzaAve3, find_clustTOD(list_dateTime$GarzaAve3,48))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$GarzaAve3[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$GarzaAve3<-mis_dup_TOD(list_dateTime$GarzaAve3)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$GarzaAve3$gp_TOD[misRepTOD$GarzaAve3$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$GarzaAve3$nb[misRepTOD$GarzaAve3$nb>1],factor(misRepTOD$GarzaAve3$gp_TOD)[misRepTOD$GarzaAve3$nb>1])
+```
+
+### Zarigueya6
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Zarigueya6, "Zarigueya6")
+```
+
+There seem to be 5 different time of days in the data:
+
+```{r}
+list_dateTime$Zarigueya6<-cbind(list_dateTime$Zarigueya6, find_clustTOD(list_dateTime$Zarigueya6,5))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Zarigueya6[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Zarigueya6<-mis_dup_TOD(list_dateTime$Zarigueya6)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Zarigueya6$gp_TOD[misRepTOD$Zarigueya6$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Zarigueya6$nb[misRepTOD$Zarigueya6$nb>1],factor(misRepTOD$Zarigueya6$gp_TOD)[misRepTOD$Zarigueya6$nb>1])
+```
+
+### Phimosus05
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Phimosus05, "Phimosus05")
+```
+
+There seem to be 27 different time of days in the data:
+
+```{r}
+list_dateTime$Phimosus05<-cbind(list_dateTime$Phimosus05, find_clustTOD(list_dateTime$Phimosus05,27))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Phimosus05[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Phimosus05<-mis_dup_TOD(list_dateTime$Phimosus05)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Phimosus05$gp_TOD[misRepTOD$Phimosus05$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Phimosus05$nb[misRepTOD$Phimosus05$nb>1],factor(misRepTOD$Phimosus05$gp_TOD)[misRepTOD$Phimosus05$nb>1])
+```
+
+### Phimosus07
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Phimosus07, "Phimosus07")
+```
+
+There seem to be 27 different time of days in the data:
+
+```{r}
+list_dateTime$Phimosus07<-cbind(list_dateTime$Phimosus07, find_clustTOD(list_dateTime$Phimosus07,27))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Phimosus07[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Phimosus07<-mis_dup_TOD(list_dateTime$Phimosus07)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Phimosus07$gp_TOD[misRepTOD$Phimosus07$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Phimosus07$nb[misRepTOD$Phimosus07$nb>1],factor(misRepTOD$Phimosus07$gp_TOD)[misRepTOD$Phimosus07$nb>1])
+```
+
+### Phimosus06
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Phimosus06, "Phimosus06")
+```
+
+There seem to be 27 different time of days in the data:
+
+```{r}
+list_dateTime$Phimosus06<-cbind(list_dateTime$Phimosus06, find_clustTOD(list_dateTime$Phimosus06,27))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Phimosus06[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Phimosus06<-mis_dup_TOD(list_dateTime$Phimosus06)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Phimosus06$gp_TOD[misRepTOD$Phimosus06$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Phimosus06$nb[misRepTOD$Phimosus06$nb>1],factor(misRepTOD$Phimosus06$gp_TOD)[misRepTOD$Phimosus06$nb>1])
+```
+
+### Zarigueya7
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Zarigueya7, "Zarigueya7")
+```
+
+There seem to be 6 different time of days in the data:
+
+```{r}
+list_dateTime$Zarigueya7<-cbind(list_dateTime$Zarigueya7, find_clustTOD(list_dateTime$Zarigueya7,6))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Zarigueya7[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Zarigueya7<-mis_dup_TOD(list_dateTime$Zarigueya7)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Zarigueya7$gp_TOD[misRepTOD$Zarigueya7$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Zarigueya7$nb[misRepTOD$Zarigueya7$nb>1],factor(misRepTOD$Zarigueya7$gp_TOD)[misRepTOD$Zarigueya7$nb>1])
+```
+
+### Guacharaca02
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Guacharaca02, "Guacharaca02")
+```
+
+There seem to be 27 different time of days in the data:
+
+```{r}
+list_dateTime$Guacharaca02<-cbind(list_dateTime$Guacharaca02, find_clustTOD(list_dateTime$Guacharaca02,27))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Guacharaca02[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Guacharaca02<-mis_dup_TOD(list_dateTime$Guacharaca02)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Guacharaca02$gp_TOD[misRepTOD$Guacharaca02$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Guacharaca02$nb[misRepTOD$Guacharaca02$nb>1],factor(misRepTOD$Guacharaca02$gp_TOD)[misRepTOD$Guacharaca02$nb>1])
+```
+
+### PavaGarza-4
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$`PavaGarza-4`, "`PavaGarza-4`")
+```
+
+There seem to be 38 different time of days in the data:
+
+```{r}
+list_dateTime$`PavaGarza-4`<-cbind(list_dateTime$`PavaGarza-4`, find_clustTOD(list_dateTime$`PavaGarza-4`,38))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$`PavaGarza-4`[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$`PavaGarza-4`<-mis_dup_TOD(list_dateTime$`PavaGarza-4`)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$`PavaGarza-4`$gp_TOD[misRepTOD$`PavaGarza-4`$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$`PavaGarza-4`$nb[misRepTOD$`PavaGarza-4`$nb>1],factor(misRepTOD$`PavaGarza-4`$gp_TOD)[misRepTOD$`PavaGarza-4`$nb>1])
+```
+
+### Asio2
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Asio2, "Asio2")
+```
+
+There seem to be 9 different time of days in the data:
+
+```{r}
+list_dateTime$Asio2<-cbind(list_dateTime$Asio2, find_clustTOD(list_dateTime$Asio2,9))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Asio2[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Asio2<-mis_dup_TOD(list_dateTime$Asio2)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Asio2$gp_TOD[misRepTOD$Asio2$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Asio2$nb[misRepTOD$Asio2$nb>1],factor(misRepTOD$Asio2$gp_TOD)[misRepTOD$Asio2$nb>1])
+```
+
+### BuhoPigua6
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$BuhoPigua6, "BuhoPigua6")
+```
+
+There seem to be 16 different time of days in the data:
+
+```{r}
+list_dateTime$BuhoPigua6<-cbind(list_dateTime$BuhoPigua6, find_clustTOD(list_dateTime$BuhoPigua6,16))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$BuhoPigua6[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$BuhoPigua6<-mis_dup_TOD(list_dateTime$BuhoPigua6)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$BuhoPigua6$gp_TOD[misRepTOD$BuhoPigua6$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$BuhoPigua6$nb[misRepTOD$BuhoPigua6$nb>1],factor(misRepTOD$BuhoPigua6$gp_TOD)[misRepTOD$BuhoPigua6$nb>1])
+```
+
+### Guacharaca04
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Guacharaca04, "Guacharaca04")
+```
+
+There seem to be 3 different time of days in the data:
+
+```{r}
+list_dateTime$Guacharaca04<-cbind(list_dateTime$Guacharaca04, find_clustTOD(list_dateTime$Guacharaca04,3))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Guacharaca04[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Guacharaca04<-mis_dup_TOD(list_dateTime$Guacharaca04)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Guacharaca04$gp_TOD[misRepTOD$Guacharaca04$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Guacharaca04$nb[misRepTOD$Guacharaca04$nb>1],factor(misRepTOD$Guacharaca04$gp_TOD)[misRepTOD$Guacharaca04$nb>1])
+```
+
+### PerezosoZorro1
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$PerezosoZorro1, "PerezosoZorro1")
+```
+
+There seem to be 3 different time of days in the data:
+
+```{r}
+list_dateTime$PerezosoZorro1<-cbind(list_dateTime$PerezosoZorro1, find_clustTOD(list_dateTime$PerezosoZorro1,3))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$PerezosoZorro1[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$PerezosoZorro1<-mis_dup_TOD(list_dateTime$PerezosoZorro1)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$PerezosoZorro1$gp_TOD[misRepTOD$PerezosoZorro1$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$PerezosoZorro1$nb[misRepTOD$PerezosoZorro1$nb>1],factor(misRepTOD$PerezosoZorro1$gp_TOD)[misRepTOD$PerezosoZorro1$nb>1])
+```
+
+### Titi4
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Titi4, "Titi4")
+```
+
+There seem to be 16 different time of days in the data:
+
+```{r}
+list_dateTime$Titi4<-cbind(list_dateTime$Titi4, find_clustTOD(list_dateTime$Titi4,16))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Titi4[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Titi4<-mis_dup_TOD(list_dateTime$Titi4)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Titi4$gp_TOD[misRepTOD$Titi4$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Titi4$nb[misRepTOD$Titi4$nb>1],factor(misRepTOD$Titi4$gp_TOD)[misRepTOD$Titi4$nb>1])
+```
+
+### Phimosus03
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$Phimosus03, "Phimosus03")
+```
+
+There seem to be 16 different time of days in the data:
+
+```{r}
+list_dateTime$Phimosus03<-cbind(list_dateTime$Phimosus03, find_clustTOD(list_dateTime$Phimosus03,16))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$Phimosus03[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$Phimosus03<-mis_dup_TOD(list_dateTime$Phimosus03)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$Phimosus03$gp_TOD[misRepTOD$Phimosus03$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$Phimosus03$nb[misRepTOD$Phimosus03$nb>1],factor(misRepTOD$Phimosus03$gp_TOD)[misRepTOD$Phimosus03$nb>1])
+```
+
+### GuacharacaAsio-4
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$`GuacharacaAsio-4`, "GuacharacaAsio-4")
+```
+
+There seem to be 9 different time of days in the data:
+
+```{r}
+list_dateTime$`GuacharacaAsio-4`<-cbind(list_dateTime$`GuacharacaAsio-4`, find_clustTOD(list_dateTime$`GuacharacaAsio-4`,9))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$`GuacharacaAsio-4`[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$`GuacharacaAsio-4`<-mis_dup_TOD(list_dateTime$`GuacharacaAsio-4`)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$`GuacharacaAsio-4`$gp_TOD[misRepTOD$`GuacharacaAsio-4`$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$`GuacharacaAsio-4`$nb[misRepTOD$`GuacharacaAsio-4`$nb>1],factor(misRepTOD$`GuacharacaAsio-4`$gp_TOD)[misRepTOD$`GuacharacaAsio-4`$nb>1])
+```
+
+### GarzaTiti3
+
+```{r fig.height=10}
+par(mfrow=c(2,1))
+hists_timestamps(list_dateTime$GarzaTiti3, "GarzaTiti3")
+```
+
+There seem to be 15 different time of days in the data:
+
+```{r}
+list_dateTime$GarzaTiti3<-cbind(list_dateTime$GarzaTiti3, find_clustTOD(list_dateTime$GarzaTiti3,15))
+```
+
+The average time of the clustered TOD are:
+
+```{r}
+A<-unique(list_dateTime$GarzaTiti3[c("gp_TOD","meanGp")])
+A[order(A$gp_TOD),]%>%kable(row.names = F)
+```
+
+
+
+Concerning repeated and missing times of day:
+
+```{r}
+misRepTOD$GarzaTiti3<-mis_dup_TOD(list_dateTime$GarzaTiti3)
+```
+
+The missing time of day are:
+```{r}
+table(misRepTOD$GarzaTiti3$gp_TOD[misRepTOD$GarzaTiti3$nb==0])
+```
+
+The repeated time of day are:
+
+```{r}
+table(misRepTOD$GarzaTiti3$nb[misRepTOD$GarzaTiti3$nb>1],factor(misRepTOD$GarzaTiti3$gp_TOD)[misRepTOD$GarzaTiti3$nb>1])
+```
+
+# Saving the objects created here
+
+```{r}
+save(list=c("list_dateTime","misRepTOD"),file="list_dateTime.RData")
+```
+
+

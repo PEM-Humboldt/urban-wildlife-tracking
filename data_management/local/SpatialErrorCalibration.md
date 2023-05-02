@@ -1,7 +1,7 @@
 Spatial error calibration
 ================
 Marius Bottin
-2023-04-30
+2023-05-01
 
 - [Getting main information from
   movebank](#getting-main-information-from-movebank)
@@ -96,6 +96,7 @@ matches <- sapply(caliNames, function(x, tab) {
         "Garza")) & tab$partNumber == num)
 }, tab = tabNames)
 tabNames$calibName[matches] <- caliNames
+save(tabNames, file = "tabNames.RData")
 kable(tabNames[c("aniNames", "calibName")], colnames = c("Movebank name",
     "Calibration file name"))
 ```
@@ -386,6 +387,22 @@ BuhoPigua6
 </tr>
 <tr>
 <td style="text-align:left;">
+Ardilla2
+</td>
+<td style="text-align:left;">
+—
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+PavaGuacharaca5
+</td>
+<td style="text-align:left;">
+—
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
 Guacharaca04
 </td>
 <td style="text-align:left;">
@@ -567,6 +584,17 @@ Then, when the errors are fixed, we can transform it as a `ctmm` object:
 
 ``` r
 calibData <- lapply(CSV_calib, as.telemetry)
+```
+
+Because calibration in `ctmm` is based on “location classes” it is safer
+to nullify classes in the calibration `telemetry` object (and in the
+tracking dataset as well). (See explanation in:
+<https://github.com/ctmm-initiative/ctmm/issues/47>)
+
+``` r
+for (i in 1:length(calibData)) {
+    calibData[[i]]$class <- NULL
+}
 ```
 
 # Analysing calibration data
@@ -1366,6 +1394,7 @@ for (i in 1:nrow(tabNames)) {
     rawList[[i]]$moveData = getMovebankData(study = study_id, login = lgin,
         animalName = tabNames$aniNames[i])
     rawList[[i]]$ctmmData = as.telemetry(rawList[[i]]$moveData)
+    rawList[[i]]$ctmmData$class <- NULL
 }
 ```
 
@@ -1383,6 +1412,7 @@ Calculating UERE is done in `ctmm` using a calibration dataset.
 
 ``` r
 UERE_list <- lapply(calibData, uere.fit)
+save("UERE_list", file = "uere.RData")
 ```
 
 When you look at the `ctmm` telemetry object of Zorro02 before applying
@@ -1408,9 +1438,6 @@ latitude
 </th>
 <th style="text-align:right;">
 t
-</th>
-<th style="text-align:left;">
-class
 </th>
 <th style="text-align:right;">
 HDOP
@@ -1458,9 +1485,6 @@ vy
 <td style="text-align:right;">
 1668582231
 </td>
-<td style="text-align:left;">
-2514698630 NA 3
-</td>
 <td style="text-align:right;">
 0.91
 </td>
@@ -1504,9 +1528,6 @@ vy
 </td>
 <td style="text-align:right;">
 1668589425
-</td>
-<td style="text-align:left;">
-2514698630 NA 3
 </td>
 <td style="text-align:right;">
 2.04
@@ -1552,9 +1573,6 @@ vy
 <td style="text-align:right;">
 1668601951
 </td>
-<td style="text-align:left;">
-2514698630 NA 3
-</td>
 <td style="text-align:right;">
 1.46
 </td>
@@ -1598,9 +1616,6 @@ vy
 </td>
 <td style="text-align:right;">
 1668609155
-</td>
-<td style="text-align:left;">
-2514698630 NA 3
 </td>
 <td style="text-align:right;">
 2.06
@@ -1646,9 +1661,6 @@ vy
 <td style="text-align:right;">
 1668616318
 </td>
-<td style="text-align:left;">
-2514698630 NA 3
-</td>
 <td style="text-align:right;">
 1.18
 </td>
@@ -1692,9 +1704,6 @@ vy
 </td>
 <td style="text-align:right;">
 1668623554
-</td>
-<td style="text-align:left;">
-2514698630 NA 3
 </td>
 <td style="text-align:right;">
 1.37
@@ -1753,9 +1762,6 @@ latitude
 <th style="text-align:right;">
 t
 </th>
-<th style="text-align:left;">
-class
-</th>
 <th style="text-align:right;">
 HDOP
 </th>
@@ -1811,9 +1817,6 @@ VAR.v
 <td style="text-align:right;">
 1668582231
 </td>
-<td style="text-align:left;">
-2514698630 NA 3
-</td>
 <td style="text-align:right;">
 0.91
 </td>
@@ -1845,13 +1848,13 @@ VAR.v
 0.0046164
 </td>
 <td style="text-align:right;">
-41.405
+200.1847
 </td>
 <td style="text-align:right;">
-82.81
+239.2377
 </td>
 <td style="text-align:right;">
-41.405
+0.41405
 </td>
 </tr>
 <tr>
@@ -1866,9 +1869,6 @@ VAR.v
 </td>
 <td style="text-align:right;">
 1668589425
-</td>
-<td style="text-align:left;">
-2514698630 NA 3
 </td>
 <td style="text-align:right;">
 2.04
@@ -1901,13 +1901,13 @@ VAR.v
 0.0562923
 </td>
 <td style="text-align:right;">
-208.080
+1006.0244
 </td>
 <td style="text-align:right;">
-416.16
+1202.2842
 </td>
 <td style="text-align:right;">
-208.080
+2.08080
 </td>
 </tr>
 <tr>
@@ -1922,9 +1922,6 @@ VAR.v
 </td>
 <td style="text-align:right;">
 1668601951
-</td>
-<td style="text-align:left;">
-2514698630 NA 3
 </td>
 <td style="text-align:right;">
 1.46
@@ -1957,13 +1954,13 @@ VAR.v
 0.0084037
 </td>
 <td style="text-align:right;">
-106.580
+515.2926
 </td>
 <td style="text-align:right;">
-213.16
+615.8182
 </td>
 <td style="text-align:right;">
-106.580
+1.06580
 </td>
 </tr>
 <tr>
@@ -1978,9 +1975,6 @@ VAR.v
 </td>
 <td style="text-align:right;">
 1668609155
-</td>
-<td style="text-align:left;">
-2514698630 NA 3
 </td>
 <td style="text-align:right;">
 2.06
@@ -2013,13 +2007,13 @@ VAR.v
 0.0151269
 </td>
 <td style="text-align:right;">
-212.180
+1025.8471
 </td>
 <td style="text-align:right;">
-424.36
+1225.9739
 </td>
 <td style="text-align:right;">
-212.180
+2.12180
 </td>
 </tr>
 <tr>
@@ -2034,9 +2028,6 @@ VAR.v
 </td>
 <td style="text-align:right;">
 1668616318
-</td>
-<td style="text-align:left;">
-2514698630 NA 3
 </td>
 <td style="text-align:right;">
 1.18
@@ -2069,13 +2060,13 @@ VAR.v
 0.0251972
 </td>
 <td style="text-align:right;">
-69.620
+336.5985
 </td>
 <td style="text-align:right;">
-139.24
+402.2637
 </td>
 <td style="text-align:right;">
-69.620
+0.69620
 </td>
 </tr>
 <tr>
@@ -2090,9 +2081,6 @@ VAR.v
 </td>
 <td style="text-align:right;">
 1668623554
-</td>
-<td style="text-align:left;">
-2514698630 NA 3
 </td>
 <td style="text-align:right;">
 1.37
@@ -2125,13 +2113,13 @@ VAR.v
 0.0033606
 </td>
 <td style="text-align:right;">
-93.845
+453.7215
 </td>
 <td style="text-align:right;">
-187.69
+542.2355
 </td>
 <td style="text-align:right;">
-93.845
+0.93845
 </td>
 </tr>
 </tbody>
@@ -2149,7 +2137,7 @@ plot(zorro02_ctmm$HDOP, sqrt(zorro02_ctmm$VAR.xy), main = "Zorro02", xlab = "HDO
     ylab = "VAR.xy")
 ```
 
-![](Fig/calib_unnamed-chunk-14-1.jpeg)<!-- -->
+![](Fig/calib_unnamed-chunk-15-1.jpeg)<!-- -->
 
 So this linear relationship may be described by a linear model such as:
 
@@ -2163,7 +2151,7 @@ So this linear relationship may be described by a linear model such as:
     ## 
     ## Coefficients:
     ##       (Intercept)  zorro02_ctmm$HDOP  
-    ##         1.017e-14          7.071e+00
+    ##         5.231e-14          1.555e+01
 
 Now if we apply the same treatment to another animal:
 
@@ -2174,7 +2162,7 @@ plot(zarigueya2_ctmm$HDOP, sqrt(zarigueya2_ctmm$VAR.xy), main = "zarigueya2",
     xlab = "HDOP", ylab = "VAR.xy")
 ```
 
-![](Fig/calib_unnamed-chunk-16-1.jpeg)<!-- -->
+![](Fig/calib_unnamed-chunk-17-1.jpeg)<!-- -->
 
 ``` r
 (LM_errorzarigueya2 <- lm(sqrt(zarigueya2_ctmm$VAR.xy) ~ zarigueya2_ctmm$HDOP))
@@ -2186,10 +2174,18 @@ plot(zarigueya2_ctmm$HDOP, sqrt(zarigueya2_ctmm$VAR.xy), main = "zarigueya2",
     ## 
     ## Coefficients:
     ##          (Intercept)  zarigueya2_ctmm$HDOP  
-    ##           -2.122e-14             7.071e+00
+    ##           -3.727e-13             5.618e+01
 
-I believe we should obtain a different factor, however both model give
-exactly the same slope, only the intercept is different.
+You may see that Zarigueya 2 had larger errors, which explains why the
+slope is higher as well!
 
-It might be that I do not get something in the calibration process, but
-to be sure I’ll send an issue to ctmm-initiative/ctmm…
+Applying the respective UERE on the individual datasets:
+
+``` r
+for (i in 1:length(rawList)) {
+    if (names(rawList)[i] %in% names(UERE_list)) {
+        uere(rawList[[i]]$ctmmData <- UERE_list[[names(rawList)[i]]])
+    }
+}
+save(rawList, file = "calibratedRawList.RData")
+```

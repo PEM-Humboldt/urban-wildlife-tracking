@@ -97,6 +97,7 @@ matches <- sapply(caliNames,function(x,tab)
     which((tab$partLetter==let|(tab$partLetter=="GarzaAve"&let=="Garza"))&tab$partNumber==num)
   }, tab=tabNames)
 tabNames$calibName[matches]<-caliNames
+save(tabNames,file="tabNames.RData")
 kable(tabNames[c("aniNames","calibName")],colnames=c("Movebank name","Calibration file name"))
 ```
 
@@ -143,6 +144,8 @@ for(i in 1:length(CSV_calib))
 }
 ```
 
+
+
 ## Getting the calibration data in `ctmm` format
 
 Then, when the errors are fixed, we can transform it as a  `ctmm` object:
@@ -150,6 +153,19 @@ Then, when the errors are fixed, we can transform it as a  `ctmm` object:
 ```{r warning=FALSE, message=FALSE}
 calibData <- lapply(CSV_calib,as.telemetry)
 ```
+
+
+Because calibration in `ctmm` is based on "location classes" it is safer to nullify classes in the calibration `telemetry` object (and in the tracking dataset as well). (See explanation in: https://github.com/ctmm-initiative/ctmm/issues/47)
+
+```{r}
+for(i in 1:length(calibData))
+{
+  calibData[[i]]$class<-NULL
+}
+```
+
+
+
 # Analysing calibration data
 
 ## Main informations
@@ -356,8 +372,11 @@ for(i in 1:nrow(tabNames))
   rawList[[tabNames$aniNames[i]]]<-list()
   rawList[[i]]$moveData=getMovebankData(study = study_id, login = lgin,animalName = tabNames$aniNames[i])
   rawList[[i]]$ctmmData=as.telemetry(rawList[[i]]$moveData)
+  rawList[[i]]$ctmmData$class<-NULL
 }
 ```
+
+
 
 # Calculating UERE
 
@@ -366,10 +385,16 @@ The Dilution Of Precision (DOP) correspond to the heteroskedastic (i.e. it does 
 
 $location~error(t)= DOP(t) × UERE(t)$
 
+
 Calculating UERE is done in `ctmm` using a calibration dataset.
+
+
+
+
 
 ```{r}
 UERE_list <- lapply(calibData,uere.fit)
+save("UERE_list",file="uere.RData")
 ```
 
 When you look at the `ctmm` telemetry object of Zorro02 before applying the UERE calibration, for instance:
@@ -409,9 +434,17 @@ plot(zarigueya2_ctmm$HDOP,sqrt(zarigueya2_ctmm$VAR.xy),main="zarigueya2",xlab="H
 (LM_errorzarigueya2<-lm(sqrt(zarigueya2_ctmm$VAR.xy)~zarigueya2_ctmm$HDOP))
 ```
 
+You may see that Zarigueya 2 had larger errors, which explains why the slope is higher as well!
 
-I believe we should obtain a different factor, however both model give exactly the same slope, only the intercept is different.
 
-It might be that I do not get something in the calibration process, but to be sure I'll send an issue to ctmm-initiative/ctmm...
-
+Applying the respective UERE on the individual datasets:
+```{r}
+for(i in 1:length(rawList)){
+  if(names(rawList)[i] %in% names(UERE_list))
+  {
+    uere(rawList[[i]]$ctmmData)<-NULL
+    uere(rawList[[i]]$ctmmData)<-UERE_list[[names(rawList)[i]]]}
+}
+save(rawList,file="calibratedRawList.RData")
+```
 
