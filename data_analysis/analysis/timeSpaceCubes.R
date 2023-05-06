@@ -60,8 +60,8 @@ spPtsList<-lapply(filteredList,function(x)move2ade(x$moveData))
 spLinList<-lapply(spPtsList,as,"SpatialLines")
 plot3d(x=filteredList$Pigua2$moveData$location_long,
        y=filteredList$Pigua2$moveData$location_lat,
-       z=filteredList$Pigua2$moveData$timestamp
-      ,type="p",col=ColPt,
+       z=filteredList$Pigua2$moveData$timestamp,
+      type="p",col=ColPt,decorate = F
 )
 ColRep<-rep(NA,length(filteredList$Pigua2$moveData$location_long)*2)
 ColRep<-c(NA,rep(ColLi,each=2),NA)
@@ -69,4 +69,11 @@ plot3d(x=rep(filteredList$Pigua2$moveData$location_long,each=2),
            y=rep(filteredList$Pigua2$moveData$location_lat,each=2),
            z=rep(filteredList$Pigua2$moveData$timestamp,each=2),
            col =ColRep,type="l",add=T)
+axis3d("x--")
+axis3d("y--")
+zval<-as.numeric(filteredList$Pigua2$moveData$timestamp)
+AT=seq(min(zval),max(zval),length.out=5)
+LABELS<-as.Date(as.POSIXct(AT,origin="1970-01-01",tz="GMT"))
+axis3d("z--",at=AT,labels=LABELS)
+
 rglwidget()
