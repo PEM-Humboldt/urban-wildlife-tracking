@@ -31,8 +31,9 @@ require(rgeos)
 require(leaflet)
 &
 require(move)
+&
+require(rgl)
 )
-
 knitr::opts_chunk$set(cache=T,tidy.opts = list(width.cutoff = 70), tidy = TRUE, fig.path="Fig/visu_",echo=T)
 def.chunk.hook  <- knitr::knit_hooks$get("chunk")
 knitr::knit_hooks$set(chunk = function(x, options) {
@@ -324,4 +325,28 @@ llMaps$Zorro07
 Moreover, when applied on a local machine, it is possible to zoom into the map to see details.
 However, when a lot of points and lines are overlapping, it is quite difficult to distinguish the movement and to extrapolate some patterns out of the maps
 
+# Space Time Cubes
+
+```{r snapshot=T, dev="png"}
+if(!interactive()){
+  setupKnitr(autoprint = F)
+  options(rgl.printRglwidget = FALSE)
+}
+spPtsList<-lapply(filteredList,function(x)move2ade(x$moveData))
+spLinList<-lapply(spPtsList,as,"SpatialLines")
+plot3d(coordinates(spPtsList$Zorro02)[,"location_long"],
+       coordinates(spPtsList$Zorro02)[,"location_lat"],
+       filteredList$Zorro02$moveData$timestamp,
+       type="l"
+)
+plot3d(coordinates(spPtsList$Zorro02)[,"location_long"],
+       coordinates(spPtsList$Zorro02)[,"location_lat"],
+       filteredList$Zorro02$moveData$timestamp,
+       type="p",add=T
+)
+rglwidget()
+#with(martenF1, plot3d(location.long,location.lat,timestamp, type="l", col=as.integer(martenF1$landC)))
+#(stcube<-with(martenF1, plot3d(location.long,location.lat,timestamp, type="l", 
+#                                       col=as.numeric(cut(martenF1$Elevation,5)), alpha=0.4)))
+```
 
